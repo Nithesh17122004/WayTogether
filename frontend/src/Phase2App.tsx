@@ -262,6 +262,7 @@ type VehicleRecord = {
 };
 type DriverDocumentRecord = {
   id: number; document_type: string; vehicle: number | null; vehicle_registration: string | null;
+  owner_name?: string; owner_email?: string;
   original_file_name: string; content_type: string; file_size: number; expiry_date: string | null;
   review_status: string; review_status_display: string; review_note: string;
   is_current: boolean; uploaded_at: string; download_url: string;
