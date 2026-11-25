@@ -264,6 +264,11 @@ class JourneyPublishView(APIView):
                 return Response({"detail": "Your driver verification must be approved before publishing."}, status=403)
             if journey.vehicle.verification_status != Vehicle.VerificationStatus.APPROVED:
                 return Response({"detail": "The selected vehicle must be approved before publishing."}, status=403)
+            if journey.travel_date < timezone.localdate() or (
+                journey.travel_date == timezone.localdate()
+                and journey.departure_time <= timezone.localtime().time().replace(tzinfo=None)
+            ):
+                return Response({"detail": "This departure time has already passed. Update the draft to a future departure time."}, status=400)
             if not journey.independently_planned or not journey.expenses_only:
                 return Response({"detail": "The journey must meet WayTogether's independent journey and expense-sharing rules."}, status=400)
             if journey.estimated_total_expenses <= Decimal("0.00"):
