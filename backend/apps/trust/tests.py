@@ -338,6 +338,8 @@ class TrustApiTests(APITestCase):
         )
         self.assertEqual(too_early.status_code, status.HTTP_409_CONFLICT)
 
+        self.booking.status = Booking.Status.CONFIRMED
+        self.booking.save(update_fields=["status"])
         self.journey.status = Journey.Status.COMPLETED
         self.journey.save(update_fields=["status"])
         passenger_review = self.client.post(
