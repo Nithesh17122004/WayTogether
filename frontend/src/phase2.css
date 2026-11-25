@@ -916,3 +916,10 @@
   .wt-admin-trend .wt-panel-heading { flex-direction:column; }
   .wt-admin-data-stamp { white-space:normal; }
 }
+
+
+/* Phase 10 — session access and sign-out */
+.wt-auth-wait { min-height:100vh; display:grid; place-items:center; padding:24px; color:#d6def5; background:#070b1b; font-size:13px; }
+.wt-sidebar-bottom button { display:flex; align-items:center; gap:9px; width:100%; padding:9px 10px; color:#a2b0d0; border:0; border-radius:8px; text-align:left; background:transparent; font:inherit; font-size:9px; cursor:pointer; }
+.wt-sidebar-bottom button:hover { color:#fff; background:rgba(255,255,255,.06); }
+.wt-sidebar-bottom button:focus-visible { outline:2px solid #8f85ff; outline-offset:2px; }
