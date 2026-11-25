@@ -49,10 +49,10 @@ if not DEBUG:
         raise ImproperlyConfigured("Set DJANGO_ALLOWED_HOSTS to the exact production API hostnames; wildcards are not allowed.")
     if not DATABASE_URL:
         raise ImproperlyConfigured("DATABASE_URL is required outside development.")
-    if not CORS_ALLOWED_ORIGINS or "*" in CORS_ALLOWED_ORIGINS:
-        raise ImproperlyConfigured("Set CORS_ALLOWED_ORIGINS to the exact HTTPS frontend origin(s).")
-    if not CSRF_TRUSTED_ORIGINS:
-        raise ImproperlyConfigured("Set CSRF_TRUSTED_ORIGINS to the exact frontend/admin origin(s).")
+    if not CORS_ALLOWED_ORIGINS or "*" in CORS_ALLOWED_ORIGINS or any(not origin.startswith("https://") for origin in CORS_ALLOWED_ORIGINS):
+        raise ImproperlyConfigured("Set CORS_ALLOWED_ORIGINS to exact HTTPS frontend origin(s); wildcards and HTTP origins are not allowed in production.")
+    if not CSRF_TRUSTED_ORIGINS or any(not origin.startswith("https://") for origin in CSRF_TRUSTED_ORIGINS):
+        raise ImproperlyConfigured("Set CSRF_TRUSTED_ORIGINS to exact HTTPS frontend/admin origin(s) in production.")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -125,7 +125,7 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
-MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", str(BASE_DIR / "media"))).expanduser()
+MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT") or str(BASE_DIR / "media")).expanduser()
 # Verification documents must only be served through the authenticated download API.
 # Never expose MEDIA_ROOT or MEDIA_URL through a public static/media route.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
