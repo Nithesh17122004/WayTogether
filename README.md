@@ -60,7 +60,7 @@ python manage.py runserver
 
 Health endpoint: http://127.0.0.1:8000/api/v1/health/
 
-The website now supports API-backed driver KYC, vehicle verification, journey drafts, verified-driver publishing, route/date/seat search and journey detail pages. Booking, payment, payout, messaging and live tracking are not implemented yet.
+The website now supports API-backed driver KYC, vehicle verification, journey publishing/search, passenger booking requests, driver approvals and seat availability/cancellation management. Payments, payouts, messaging and live tracking are not implemented yet.
 
 ## Development phases
 
@@ -69,7 +69,7 @@ The website now supports API-backed driver KYC, vehicle verification, journey dr
 3. Authentication and user management
 4. Driver, vehicle and document verification
 5. Journey publishing and search — implemented in Phase 5
-6. Booking and journey management
+6. Booking and journey management — implemented in Phase 6
 7. Payments and financial management (sandbox until approvals)
 8. Communication, safety and trust
 9. Admin panel and analytics
@@ -80,7 +80,7 @@ See the `docs/` directory for full product requirements, architecture, roadmap a
 ## Core product safeguards
 
 - Drivers must independently plan journeys and attest that they would travel without passengers.
-- Passenger contributions are estimates of eligible journey expenses, not fares or driver income; final sharing is recalculated during booking.
+- Passenger contributions are estimates of eligible journey expenses, not fares or driver income; provisional shares are recalculated as confirmed seat occupancy changes. Final payment allocation is still pending.
 - Passenger contributions are intended for eligible journey-expense sharing, not driver profit.
 - Platform fees must be separately disclosed and used only after legal and tax review.
 - Live payments and payouts must not be enabled until the operating model, insurance, tax position and payment provider are approved.
