@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "apps.drivers.apps.DriversConfig",
     "apps.journeys.apps.JourneysConfig",
     "apps.bookings.apps.BookingsConfig",
+    "apps.finance.apps.FinanceConfig",
     "apps.core",
 ]
 
@@ -129,6 +130,7 @@ REST_FRAMEWORK = {
         "route_preview": "30/minute",
         "booking_request": "10/hour",
         "booking_action": "30/hour",
+        "finance_action": "10/hour",
     },
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
@@ -158,3 +160,12 @@ MAPS_USER_AGENT = os.getenv(
     "MAPS_USER_AGENT",
     "WayTogether/1.0 (configure a monitored contact URL before production)",
 )
+
+
+# Finance is intentionally test-only. No live gateway adapter or charge path exists.
+# Production defaults to disabled unless an operator explicitly enables fake sandbox
+# simulation for a controlled test environment.
+FINANCE_SANDBOX_ENABLED = os.getenv(
+    "FINANCE_SANDBOX_ENABLED", "true" if DEBUG else "false"
+).lower() == "true"
+LIVE_PAYMENTS_ENABLED = False
