@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -10,6 +11,7 @@ from rest_framework.test import APITestCase
 
 from apps.drivers.models import DriverProfile, Vehicle, VerificationDocument
 from .models import Journey, JourneyStop
+from .services import MapsProviderError, MapsRateLimitError, get_route_preview, search_locations
 
 User = get_user_model()
 
@@ -331,6 +333,32 @@ class JourneyApiTests(APITestCase):
         response = self.client.get("/api/v1/journeys/", params)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
+
+    @patch("apps.journeys.services.requests.get")
+    def test_location_search_caches_queries_and_enforces_global_limit(self, request_mock):
+        cache.clear()
+        response = request_mock.return_value
+        response.json.return_value = [{
+            "lat": "13.0827",
+            "lon": "80.2707",
+            "display_name": "Chennai, Tamil Nadu, India",
+            "address": {"city": "Chennai", "state": "Tamil Nadu"},
+        }]
+        response.raise_for_status.return_value = None
+
+        first = search_locations("Chennai Central")
+        second = search_locations("Chennai Central")
+        self.assertEqual(first, second)
+        self.assertEqual(request_mock.call_count, 1)
+        self.assertEqual(first[0]["name"], "Chennai")
+
+        with self.assertRaises(MapsRateLimitError):
+            search_locations("Madurai")
+
+    def test_route_preview_requires_configured_provider(self):
+        with patch("apps.journeys.services.OSRM_ROUTE_URL", ""):
+            with self.assertRaises(MapsProviderError):
+                get_route_preview(13.08, 80.27, 12.97, 77.59)
 
     @patch("apps.journeys.views.search_locations")
     def test_location_search_uses_geocoding_service(self, search_mock):
