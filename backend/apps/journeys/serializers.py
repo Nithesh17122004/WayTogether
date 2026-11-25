@@ -37,6 +37,8 @@ class JourneySerializer(serializers.ModelSerializer):
     )
     origin_match_distance_km = serializers.SerializerMethodField()
     destination_match_distance_km = serializers.SerializerMethodField()
+    matched_origin_name = serializers.SerializerMethodField()
+    matched_destination_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Journey
@@ -51,7 +53,7 @@ class JourneySerializer(serializers.ModelSerializer):
             "route_duration_minutes", "route_geometry", "stops",
             "independently_planned", "expenses_only", "status", "published_at",
             "created_at", "updated_at", "origin_match_distance_km",
-            "destination_match_distance_km",
+            "destination_match_distance_km", "matched_origin_name", "matched_destination_name",
         )
         read_only_fields = (
             "id", "driver_name", "driver_verification_status", "vehicle_details",
@@ -79,6 +81,12 @@ class JourneySerializer(serializers.ModelSerializer):
     def get_destination_match_distance_km(self, obj):
         return getattr(obj, "_destination_match_distance_km", None)
 
+    def get_matched_origin_name(self, obj):
+        return getattr(obj, "_matched_origin_name", None)
+
+    def get_matched_destination_name(self, obj):
+        return getattr(obj, "_matched_destination_name", None)
+
     def validate(self, attrs):
         stops = attrs.get("stops")
         if stops is not None and len(stops) > 4:
@@ -86,8 +94,15 @@ class JourneySerializer(serializers.ModelSerializer):
 
         instance = self.instance
         travel_date = attrs.get("travel_date", getattr(instance, "travel_date", None))
+        departure_time = attrs.get("departure_time", getattr(instance, "departure_time", None))
         if travel_date and travel_date < timezone.localdate():
             raise serializers.ValidationError({"travel_date": "Travel date cannot be in the past."})
+        if (
+            travel_date == timezone.localdate()
+            and departure_time is not None
+            and departure_time <= timezone.localtime().time().replace(tzinfo=None)
+        ):
+            raise serializers.ValidationError({"departure_time": "Departure time must be in the future."})
 
         vehicle = attrs.get("vehicle", getattr(instance, "vehicle", None))
         seats = attrs.get("seats_offered", getattr(instance, "seats_offered", None))
