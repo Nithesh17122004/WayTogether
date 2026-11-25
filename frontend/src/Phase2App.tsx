@@ -1,6 +1,6 @@
 import "./phase2.css";
-import { apiRequest, setAuthTokens } from "./services/api";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { apiRequest, downloadPrivateFile, setAuthTokens } from "./services/api";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownUp, ArrowRight, ArrowUpRight, BadgeCheck, Bell, CalendarDays,
   CarFront, Check, ChevronRight, CircleHelp, Clock3, Compass, FileCheck2,
@@ -243,9 +243,219 @@ function AuthPage({ mode }: { mode: AuthMode }) {
 const passengerMenu=[{label:"Overview",to:"/dashboard/passenger",icon:LayoutDashboard},{label:"My bookings",to:"/dashboard/passenger",icon:CalendarDays},{label:"Messages",to:"/dashboard/passenger",icon:MessageCircle},{label:"Saved journeys",to:"/dashboard/passenger",icon:Compass},{label:"Profile",to:"/dashboard/passenger",icon:Settings}];
 function DashboardLayout({role,children}:{role:"Passenger"|"Driver"|"Admin";children:ReactNode}) {
   const [open,setOpen]=useState(false);
-  const links=role==="Driver"?[{label:"Overview",to:"/dashboard/driver",icon:LayoutDashboard},{label:"My journeys",to:"/dashboard/driver",icon:CarFront},{label:"Booking requests",to:"/dashboard/driver",icon:Users},{label:"Vehicle & documents",to:"/dashboard/driver",icon:FileCheck2},{label:"Profile",to:"/dashboard/driver",icon:Settings}]:role==="Admin"?[{label:"Overview",to:"/admin",icon:LayoutDashboard},{label:"Users",to:"/admin",icon:Users},{label:"Verification queue",to:"/admin",icon:FileCheck2},{label:"Journeys",to:"/admin",icon:CarFront},{label:"Reports",to:"/admin",icon:ShieldCheck}]:passengerMenu;
+  const links=role==="Driver"?[{label:"Overview",to:"/dashboard/driver",icon:LayoutDashboard},{label:"My journeys",to:"/dashboard/driver",icon:CarFront},{label:"Booking requests",to:"/dashboard/driver",icon:Users},{label:"Vehicle & documents",to:"/driver/verification",icon:FileCheck2},{label:"Profile",to:"/dashboard/driver",icon:Settings}]:role==="Admin"?[{label:"Overview",to:"/admin",icon:LayoutDashboard},{label:"Users",to:"/admin",icon:Users},{label:"Verification queue",to:"/admin/verification",icon:FileCheck2},{label:"Journeys",to:"/admin",icon:CarFront},{label:"Reports",to:"/admin",icon:ShieldCheck}]:passengerMenu;
   return <div className="wt-dashboard"><aside className={open?"wt-sidebar is-open":"wt-sidebar"}><div className="wt-sidebar-brand"><Brand/><button onClick={()=>setOpen(false)} aria-label="Close menu"><X/></button></div><div className="wt-side-label">{role} workspace</div><nav>{links.map(item=>{const Icon=item.icon;return <NavLink key={item.label} to={item.to} end className={({isActive})=>isActive?"active":""} onClick={()=>setOpen(false)}><Icon size={17}/>{item.label}</NavLink>;})}</nav><div className="wt-sidebar-bottom"><Link to="/"><Compass size={16}/> View public website</Link><Link to="/login"><LogOut size={16}/> Sign out preview</Link></div></aside><div className="wt-dashboard-main"><header className="wt-dashboard-top"><button className="wt-dash-menu" onClick={()=>setOpen(true)} aria-label="Open dashboard menu"><Menu/></button><div className="wt-dash-top-title"><span>WayTogether / {role}</span><b>{role} dashboard</b></div><div className="wt-dash-top-actions"><button aria-label="Help"><CircleHelp/></button><button aria-label="Notifications"><Bell/></button><span className="wt-small-user">{role==="Driver"?"AK":role==="Admin"?"AD":"MR"}</span></div></header><main className="wt-dashboard-content">{children}</main></div></div>;
 }
+
+type DriverProfileRecord = {
+  verification_status: string;
+  verification_status_display: string;
+  city: string;
+  state: string;
+  bio: string;
+  submitted_at: string | null;
+};
+type VehicleRecord = {
+  id: number; registration_number: string; make: string; model: string;
+  manufacture_year: number; vehicle_type: string; passenger_seats: number;
+  private_use_attested: boolean; verification_status: string; verification_status_display: string;
+};
+type DriverDocumentRecord = {
+  id: number; document_type: string; vehicle: number | null; vehicle_registration: string | null;
+  owner_name?: string; owner_email?: string;
+  original_file_name: string; content_type: string; file_size: number; expiry_date: string | null;
+  review_status: string; review_status_display: string; review_note: string;
+  is_current: boolean; uploaded_at: string; download_url: string;
+};
+const documentLabels: Record<string,string> = {
+  driver_license: "Driving licence",
+  vehicle_registration: "Vehicle registration certificate",
+  insurance: "Insurance certificate",
+  pollution_certificate: "Pollution certificate",
+  vehicle_photo: "Vehicle photograph",
+};
+function StatusPill({status}:{status:string}) {
+  const tone = status === "approved" ? "approved" : status === "rejected" || status === "needs_resubmission" ? "rejected" : "pending";
+  return <span className={"wt-review-pill " + tone}>{status.replaceAll("_"," ")}</span>;
+}
+
+function DriverVerificationPage() {
+  const [profile,setProfile] = useState<DriverProfileRecord | null>(null);
+  const [vehicles,setVehicles] = useState<VehicleRecord[]>([]);
+  const [documents,setDocuments] = useState<DriverDocumentRecord[]>([]);
+  const [loading,setLoading] = useState(true);
+  const [busy,setBusy] = useState(false);
+  const [error,setError] = useState("");
+  const [notice,setNotice] = useState("");
+  const [selectedVehicle,setSelectedVehicle] = useState("");
+  const [documentType,setDocumentType] = useState("driver_license");
+  const [file,setFile] = useState<File | null>(null);
+  const [expiryDate,setExpiryDate] = useState("");
+  const [vehicleForm,setVehicleForm] = useState({
+    registration_number:"",make:"",model:"",manufacture_year:String(new Date().getFullYear()-2),
+    colour:"",vehicle_type:"sedan",passenger_seats:"3",private_use_attested:false,
+  });
+
+  const load = async () => {
+    setLoading(true); setError("");
+    try {
+      const [profileData,vehicleData,documentData] = await Promise.all([
+        apiRequest<DriverProfileRecord>("/drivers/profile/",{},true),
+        apiRequest<VehicleRecord[]>("/drivers/vehicles/",{},true),
+        apiRequest<DriverDocumentRecord[]>("/drivers/documents/",{},true),
+      ]);
+      setProfile(profileData); setVehicles(vehicleData); setDocuments(documentData);
+      if (!selectedVehicle && vehicleData.length) setSelectedVehicle(String(vehicleData[0].id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign in with a verified driver account to manage verification.");
+    } finally { setLoading(false); }
+  };
+  useEffect(()=>{ void load(); },[]);
+
+  const createVehicle = async (event:FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setBusy(true); setError(""); setNotice("");
+    try {
+      const result = await apiRequest<VehicleRecord>("/drivers/vehicles/",{
+        method:"POST",
+        body:JSON.stringify({
+          ...vehicleForm,
+          manufacture_year:Number(vehicleForm.manufacture_year),
+          passenger_seats:Number(vehicleForm.passenger_seats),
+        }),
+      },true);
+      setNotice("Vehicle " + result.registration_number + " added. Upload its documents to continue.");
+      setVehicleForm({registration_number:"",make:"",model:"",manufacture_year:String(new Date().getFullYear()-2),colour:"",vehicle_type:"sedan",passenger_seats:"3",private_use_attested:false});
+      setSelectedVehicle(String(result.id));
+      await load();
+    } catch(err) { setError(err instanceof Error ? err.message : "Vehicle could not be saved."); }
+    finally { setBusy(false); }
+  };
+
+  const uploadDocument = async (event:FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!file) { setError("Choose a PDF, JPG or PNG document."); return; }
+    if (documentType !== "driver_license" && !selectedVehicle) { setError("Add and select a vehicle first."); return; }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const body = new FormData();
+      body.append("document_type",documentType);
+      body.append("file",file);
+      if (documentType !== "driver_license") body.append("vehicle",selectedVehicle);
+      if (expiryDate) body.append("expiry_date",expiryDate);
+      const result = await apiRequest<DriverDocumentRecord>("/drivers/documents/",{method:"POST",body},true);
+      setNotice((documentLabels[result.document_type] ?? "Document") + " uploaded. Its review status is pending.");
+      setFile(null); setExpiryDate("");
+      const input = document.getElementById("wt-driver-document-file") as HTMLInputElement | null;
+      if (input) input.value = "";
+      await load();
+    } catch(err) { setError(err instanceof Error ? err.message : "Document upload failed."); }
+    finally { setBusy(false); }
+  };
+
+  const submitVehicle = async (vehicleId:number) => {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const result = await apiRequest<{detail:string;driver_status:string;vehicle_status:string;missing_documents?:string[]}>(
+        "/drivers/verification/submit/",
+        {method:"POST",body:JSON.stringify({vehicle_id:vehicleId})},
+        true,
+      );
+      setNotice(result.detail);
+      await load();
+    } catch(err) { setError(err instanceof Error ? err.message : "Could not submit for review."); await load(); }
+    finally { setBusy(false); }
+  };
+
+  const currentDocs = documents.filter(doc=>doc.is_current);
+  const licenseUploaded = currentDocs.some(doc=>doc.document_type==="driver_license");
+  return <DashboardLayout role="Driver"><div className="wt-dash-heading"><div><Eyebrow>DRIVER VERIFICATION</Eyebrow><h1>Verify your driver profile.</h1><p>Add your vehicle and submit the required documents for administrator review.</p></div><PreviewLabel/></div>
+    <div className="wt-verification-intro"><ShieldCheck/><div><b>Private document handling</b><small>Your uploaded documents are stored privately. Only your account and authorised platform administrators can access them through the protected document endpoint.</small></div><StatusPill status={profile?.verification_status ?? "draft"}/></div>
+    {error&&<p className="wt-auth-error" role="alert">{error}</p>}{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
+    {loading ? <div className="wt-panel wt-verification-loading">Loading your verification details…</div> : <>
+      <section className="wt-panel wt-verification-card">
+        <div className="wt-panel-heading"><div><h2>Driver profile</h2><p>Basic information used for driver verification.</p></div><StatusPill status={profile?.verification_status ?? "draft"}/></div>
+        <form className="wt-profile-fields" onSubmit={async e=>{e.preventDefault();setBusy(true);try{const fd=new FormData(e.currentTarget);const data=await apiRequest<DriverProfileRecord>("/drivers/profile/",{method:"PATCH",body:JSON.stringify({city:fd.get("city"),state:fd.get("state"),bio:fd.get("bio")})},true);setProfile(data);setNotice("Driver profile saved.");}catch(err){setError(err instanceof Error?err.message:"Could not save profile.");}finally{setBusy(false);}}}>
+          <label className="wt-field"><span>City</span><input name="city" defaultValue={profile?.city ?? ""} placeholder="Your city"/></label>
+          <label className="wt-field"><span>State</span><input name="state" defaultValue={profile?.state ?? ""} placeholder="Your state"/></label>
+          <label className="wt-field wt-span-2"><span>Short driver introduction</span><input name="bio" defaultValue={profile?.bio ?? ""} maxLength={500} placeholder="A brief introduction for fellow travellers"/></label>
+          <button className="wt-btn wt-btn-outline" disabled={busy}>Save profile</button>
+        </form>
+      </section>
+
+      <section className="wt-panel wt-verification-card">
+        <div className="wt-panel-heading"><div><h2>Your vehicles</h2><p>Register a privately used vehicle. It must not be offered as a commercial taxi through this platform.</p></div></div>
+        {vehicles.length>0&&<div className="wt-vehicle-list">{vehicles.map(vehicle=><article className="wt-vehicle-row" key={vehicle.id}><span className="wt-vehicle-icon"><CarFront/></span><div><b>{vehicle.registration_number} · {vehicle.make} {vehicle.model}</b><small>{vehicle.manufacture_year} · {vehicle.vehicle_type.toUpperCase()} · {vehicle.passenger_seats} passenger seats</small></div><StatusPill status={vehicle.verification_status}/><button className="wt-link-button" type="button" onClick={()=>setSelectedVehicle(String(vehicle.id))}>Select</button></article>)}</div>}
+        <form className="wt-form-grid wt-vehicle-form" onSubmit={createVehicle}>
+          <label className="wt-field"><span>Registration number</span><input value={vehicleForm.registration_number} onChange={e=>setVehicleForm(v=>({...v,registration_number:e.target.value}))} placeholder="TN01AB1234" required/></label>
+          <label className="wt-field"><span>Make</span><input value={vehicleForm.make} onChange={e=>setVehicleForm(v=>({...v,make:e.target.value}))} placeholder="Honda" required/></label>
+          <label className="wt-field"><span>Model</span><input value={vehicleForm.model} onChange={e=>setVehicleForm(v=>({...v,model:e.target.value}))} placeholder="City" required/></label>
+          <label className="wt-field"><span>Manufacture year</span><input type="number" min="1980" max="2100" value={vehicleForm.manufacture_year} onChange={e=>setVehicleForm(v=>({...v,manufacture_year:e.target.value}))} required/></label>
+          <label className="wt-field"><span>Vehicle type</span><select value={vehicleForm.vehicle_type} onChange={e=>setVehicleForm(v=>({...v,vehicle_type:e.target.value}))}><option value="hatchback">Hatchback</option><option value="sedan">Sedan</option><option value="suv">SUV</option><option value="muv">MUV</option><option value="other">Other</option></select></label>
+          <label className="wt-field"><span>Passenger seats available</span><select value={vehicleForm.passenger_seats} onChange={e=>setVehicleForm(v=>({...v,passenger_seats:e.target.value}))}>{[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
+          <label className="wt-field"><span>Colour (optional)</span><input value={vehicleForm.colour} onChange={e=>setVehicleForm(v=>({...v,colour:e.target.value}))} placeholder="Blue"/></label>
+          <label className="wt-private-attest"><input type="checkbox" checked={vehicleForm.private_use_attested} onChange={e=>setVehicleForm(v=>({...v,private_use_attested:e.target.checked}))}/><span>I confirm this is a privately used vehicle and I am not registering it as a commercial taxi.</span></label>
+          <button className="wt-btn wt-btn-primary" disabled={busy}>Add vehicle <Plus size={15}/></button>
+        </form>
+      </section>
+
+      <section className="wt-panel wt-verification-card">
+        <div className="wt-panel-heading"><div><h2>Upload verification documents</h2><p>Accepted file formats: PDF, JPG or PNG. Maximum file size: 8 MB per document.</p></div></div>
+        <form className="wt-document-form" onSubmit={uploadDocument}>
+          <label className="wt-field"><span>Document type</span><select value={documentType} onChange={e=>setDocumentType(e.target.value)}>{Object.entries(documentLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
+          {documentType!=="driver_license"&&<label className="wt-field"><span>Vehicle</span><select value={selectedVehicle} onChange={e=>setSelectedVehicle(e.target.value)} required><option value="">Select a vehicle</option>{vehicles.map(v=><option key={v.id} value={v.id}>{v.registration_number} · {v.make} {v.model}</option>)}</select></label>}
+          <label className="wt-field"><span>Expiry date (where applicable)</span><input type="date" min={new Date().toISOString().slice(0,10)} value={expiryDate} onChange={e=>setExpiryDate(e.target.value)}/></label>
+          <label className="wt-field wt-file-field"><span>Select document file</span><input id="wt-driver-document-file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>setFile(e.target.files?.[0]??null)} required/><small>{file ? file.name : "Choose a file from your device"}</small></label>
+          <button className="wt-btn wt-btn-primary" disabled={busy||(!vehicles.length&&documentType!=="driver_license")}>Upload document <ArrowUpRight size={15}/></button>
+        </form>
+        <div className="wt-required-docs"><b>Required before submitting a vehicle</b><div className="wt-required-grid">
+          {[["Driving licence",licenseUploaded],["Vehicle registration",currentDocs.some(d=>d.document_type==="vehicle_registration"&&String(d.vehicle)===selectedVehicle)],["Insurance certificate",currentDocs.some(d=>d.document_type==="insurance"&&String(d.vehicle)===selectedVehicle)],["Vehicle photograph",currentDocs.some(d=>d.document_type==="vehicle_photo"&&String(d.vehicle)===selectedVehicle)]].map(([label,done])=><span key={String(label)} className={done?"is-uploaded":""}>{done?<Check size={13}/>:<FileCheck2 size={13}/>} {label}</span>)}
+        </div><small>Pollution certificate can also be uploaded where applicable. Document completeness is checked before submission; approval requires administrator review.</small></div>
+        {currentDocs.length>0&&<div className="wt-document-list"><b>Uploaded documents</b>{currentDocs.map(doc=><div className="wt-document-row" key={doc.id}><FileCheck2 size={17}/><span><b>{documentLabels[doc.document_type]??doc.document_type}</b><small>{doc.original_file_name} · {doc.vehicle_registration??"Driver document"}{doc.review_note ? " · " + doc.review_note : ""}</small></span><StatusPill status={doc.review_status}/><button className="wt-link-button" type="button" onClick={async()=>{try{await downloadPrivateFile("/drivers/documents/"+doc.id+"/download/",doc.original_file_name);}catch(err){setError(err instanceof Error?err.message:"Download failed.");}}}>Download</button></div>)}</div>}
+      </section>
+
+      <section className="wt-panel wt-submit-verification">
+        <div><h3>Submit a vehicle for verification</h3><p>Select a vehicle after uploading its RC, insurance, vehicle photo and your driving licence.</p></div>
+        {vehicles.length===0?<span className="wt-muted">Add a vehicle first.</span>:vehicles.map(vehicle=><div className="wt-submit-row" key={vehicle.id}><span><b>{vehicle.registration_number}</b><small>{vehicle.make} {vehicle.model}</small></span><StatusPill status={vehicle.verification_status}/><button className="wt-btn wt-btn-primary" type="button" disabled={busy||vehicle.verification_status==="approved"} onClick={()=>submitVehicle(vehicle.id)}>Submit for review <ArrowRight size={15}/></button></div>)}
+      </section>
+    </>}
+  </DashboardLayout>;
+}
+
+function AdminVerificationPage() {
+  const [queue,setQueue] = useState<DriverDocumentRecord[]>([]);
+  const [loading,setLoading] = useState(true);
+  const [busyId,setBusyId] = useState<number|null>(null);
+  const [notes,setNotes] = useState<Record<number,string>>({});
+  const [error,setError] = useState("");
+  const [notice,setNotice] = useState("");
+  const load = async () => {
+    setLoading(true); setError("");
+    try { setQueue(await apiRequest<DriverDocumentRecord[]>("/drivers/admin/verification/queue/",{},true)); }
+    catch(err) { setError(err instanceof Error?err.message:"Administrator access is required to view this queue."); }
+    finally { setLoading(false); }
+  };
+  useEffect(()=>{void load();},[]);
+  const review = async (doc:DriverDocumentRecord,decision:"approved"|"rejected") => {
+    const reviewNote = notes[doc.id]??"";
+    if(decision==="rejected"&&!reviewNote.trim()){setError("Add a rejection reason before rejecting a document.");return;}
+    setBusyId(doc.id);setError("");setNotice("");
+    try {
+      const result = await apiRequest<{detail:string}>("/drivers/admin/verification/documents/"+doc.id+"/review/",{
+        method:"POST",body:JSON.stringify({decision,review_note:reviewNote}),
+      },true);
+      setNotice(result.detail);await load();
+    } catch(err) { setError(err instanceof Error?err.message:"Could not review this document."); }
+    finally { setBusyId(null); }
+  };
+  return <DashboardLayout role="Admin"><div className="wt-dash-heading"><div><Eyebrow>ADMINISTRATOR · VERIFICATION</Eyebrow><h1>Driver document review.</h1><p>Review private driver and vehicle documents submitted by the community.</p></div><PreviewLabel/></div>
+    {error&&<p className="wt-auth-error" role="alert">{error}</p>}{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
+    <div className="wt-verification-intro"><ShieldCheck/><div><b>Restricted document access</b><small>Only staff accounts can view the review queue and download submitted files. Each review decision is recorded with the reviewer and timestamp.</small></div><span className="wt-queue-count">{queue.length} pending</span></div>
+    <section className="wt-panel wt-admin-queue"><div className="wt-panel-heading"><div><h2>Pending documents</h2><p>Approve only after checking the document and its validity.</p></div><button className="wt-btn wt-btn-outline" type="button" onClick={load}>Refresh</button></div>
+      {loading?<p className="wt-queue-empty">Loading verification queue…</p>:queue.length===0?<div className="wt-queue-empty"><Check/><b>No pending documents</b><small>New driver submissions will appear here.</small></div>:queue.map(doc=><article className="wt-admin-document" key={doc.id}><div className="wt-admin-document-head"><span className="wt-doc-icon"><FileCheck2/></span><div><b>{documentLabels[doc.document_type]??doc.document_type}</b><small>{doc.owner_name} · {doc.owner_email}</small></div><StatusPill status={doc.review_status}/></div><div className="wt-admin-document-meta"><span>Vehicle: <b>{doc.vehicle_registration??"Driver licence"}</b></span><span>File: <b>{doc.original_file_name}</b></span><span>Uploaded: <b>{new Date(doc.uploaded_at).toLocaleDateString("en-IN")}</b></span><span>Expiry: <b>{doc.expiry_date??"Not supplied"}</b></span></div><div className="wt-admin-review-actions"><button className="wt-link-button" type="button" onClick={async()=>{try{await downloadPrivateFile("/drivers/documents/"+doc.id+"/download/",doc.original_file_name);}catch(err){setError(err instanceof Error?err.message:"Download failed.");}}}>Download private file</button><input value={notes[doc.id]??""} onChange={e=>setNotes(n=>({...n,[doc.id]:e.target.value}))} placeholder="Rejection reason (required to reject)"/><button className="wt-btn wt-btn-outline" disabled={busyId===doc.id} onClick={()=>review(doc,"rejected")}>Reject</button><button className="wt-btn wt-btn-primary" disabled={busyId===doc.id} onClick={()=>review(doc,"approved")}>Approve <Check size={14}/></button></div></article>)}
+    </section>
+  </DashboardLayout>;
+}
+
 function Metric({label,value,detail,icon:Icon}:{label:string;value:string;detail:string;icon:typeof Users}) {
   return <div className="wt-metric"><span><Icon size={18}/></span><small>{label}</small><b>{value}</b><em>{detail}</em></div>;
 }
@@ -253,10 +463,10 @@ function PassengerDashboard() {
   return <DashboardLayout role="Passenger"><div className="wt-dash-heading"><div><Eyebrow>PASSENGER WORKSPACE</Eyebrow><h1>Good morning, Meera.</h1><p>Here's a look at your shared journeys.</p></div><PreviewLabel/></div><div className="wt-dash-metrics"><Metric label="Upcoming bookings" value="02" detail="Sample data" icon={CalendarDays}/><Metric label="Completed journeys" value="08" detail="Sample data" icon={CarFront}/><Metric label="Saved routes" value="04" detail="Sample data" icon={Compass}/><Metric label="Community rating" value="4.9" detail="Illustrative rating" icon={Star}/></div><section className="wt-panel wt-dash-section"><div className="wt-panel-heading"><div><h2>Upcoming journeys</h2><p>Your next shared routes, at a glance.</p></div><Link to="/search" className="wt-text-link">Find a journey <ArrowRight size={15}/></Link></div><div className="wt-table-wrap"><table><thead><tr><th>Journey</th><th>Date & time</th><th>Contribution</th><th>Status</th></tr></thead><tbody><tr><td><b>Chennai → Bengaluru</b><small>Sample driver · Arun K.</small></td><td>28 Nov · 7:30 AM</td><td>₹420</td><td><span className="wt-status status-pending">Preview</span></td></tr><tr><td><b>Coimbatore → Kochi</b><small>Sample driver · Meera R.</small></td><td>29 Nov · 9:00 AM</td><td>₹280</td><td><span className="wt-status status-pending">Preview</span></td></tr></tbody></table></div></section><div className="wt-panel wt-empty-dashboard"><Compass/><div><b>Your next journey is waiting to be discovered.</b><p>Search for people travelling along the same route.</p></div><Link className="wt-btn wt-btn-primary" to="/search">Explore journeys <ArrowRight size={15}/></Link></div></DashboardLayout>;
 }
 function DriverDashboard() {
-  return <DashboardLayout role="Driver"><div className="wt-dash-heading"><div><Eyebrow>DRIVER WORKSPACE</Eyebrow><h1>Your journeys, in one place.</h1><p>Manage independently planned trips and passenger requests.</p></div><PreviewLabel/></div><div className="wt-dash-banner"><div><span><ShieldCheck size={18}/> DRIVER PRINCIPLE</span><b>Share the journey you already planned.</b><p>WayTogether is designed for eligible expense sharing, not profit-seeking passenger transport.</p></div><Link to="/publish" className="wt-btn wt-btn-primary">Draft a journey <Plus size={16}/></Link></div><div className="wt-dash-metrics"><Metric label="Published journeys" value="03" detail="Sample data" icon={CarFront}/><Metric label="Seat requests" value="05" detail="Sample data" icon={Users}/><Metric label="Completed journeys" value="12" detail="Sample data" icon={Check}/><Metric label="Driver rating" value="4.9" detail="Illustrative rating" icon={Star}/></div><section className="wt-panel wt-dash-section"><div className="wt-panel-heading"><div><h2>Recent journey drafts</h2><p>Illustrative driver workspace content.</p></div><Link to="/publish" className="wt-text-link">Create a journey <Plus size={15}/></Link></div><div className="wt-table-wrap"><table><thead><tr><th>Route</th><th>Departure</th><th>Seats</th><th>Status</th></tr></thead><tbody><tr><td><b>Chennai → Bengaluru</b><small>Journey WT-001</small></td><td>28 Nov · 7:30 AM</td><td>2</td><td><span className="wt-status status-pending">Draft preview</span></td></tr><tr><td><b>Chennai → Vellore</b><small>Journey WT-002</small></td><td>30 Nov · 8:00 AM</td><td>3</td><td><span className="wt-status status-pending">Draft preview</span></td></tr></tbody></table></div></section></DashboardLayout>;
+  return <DashboardLayout role="Driver"><div className="wt-dash-heading"><div><Eyebrow>DRIVER WORKSPACE</Eyebrow><h1>Your journeys, in one place.</h1><p>Manage independently planned trips and passenger requests.</p></div><PreviewLabel/></div><div className="wt-dash-banner"><div><span><ShieldCheck size={18}/> DRIVER PRINCIPLE</span><b>Share the journey you already planned.</b><p>WayTogether is designed for eligible expense sharing, not profit-seeking passenger transport.</p></div><Link to="/driver/verification" className="wt-btn wt-btn-primary">Complete verification <FileCheck2 size={16}/></Link></div><div className="wt-dash-metrics"><Metric label="Published journeys" value="03" detail="Sample data" icon={CarFront}/><Metric label="Seat requests" value="05" detail="Sample data" icon={Users}/><Metric label="Completed journeys" value="12" detail="Sample data" icon={Check}/><Metric label="Driver rating" value="4.9" detail="Illustrative rating" icon={Star}/></div><section className="wt-panel wt-dash-section"><div className="wt-panel-heading"><div><h2>Recent journey drafts</h2><p>Illustrative driver workspace content.</p></div><Link to="/publish" className="wt-text-link">Create a journey <Plus size={15}/></Link></div><div className="wt-table-wrap"><table><thead><tr><th>Route</th><th>Departure</th><th>Seats</th><th>Status</th></tr></thead><tbody><tr><td><b>Chennai → Bengaluru</b><small>Journey WT-001</small></td><td>28 Nov · 7:30 AM</td><td>2</td><td><span className="wt-status status-pending">Draft preview</span></td></tr><tr><td><b>Chennai → Vellore</b><small>Journey WT-002</small></td><td>30 Nov · 8:00 AM</td><td>3</td><td><span className="wt-status status-pending">Draft preview</span></td></tr></tbody></table></div></section></DashboardLayout>;
 }
 function AdminDashboard() {
-  return <DashboardLayout role="Admin"><div className="wt-dash-heading"><div><Eyebrow>PLATFORM OPERATIONS</Eyebrow><h1>Good morning, admin.</h1><p>Monitor platform experience and review community activity.</p></div><PreviewLabel/></div><div className="wt-dash-metrics"><Metric label="Registered users" value="1,284" detail="Illustrative number" icon={Users}/><Metric label="Driver reviews" value="36" detail="Illustrative queue" icon={FileCheck2}/><Metric label="Journey previews" value="142" detail="Sample records" icon={CarFront}/><Metric label="Safety reports" value="03" detail="Sample records" icon={ShieldCheck}/></div><section className="wt-panel wt-dash-section"><div className="wt-panel-heading"><div><h2>Verification queue preview</h2><p>Example records for the future administrator workflow.</p></div><span className="wt-sample-tag">NOT LIVE DATA</span></div><div className="wt-table-wrap"><table><thead><tr><th>Applicant</th><th>Submission</th><th>Received</th><th>Status</th><th>Action</th></tr></thead><tbody><tr><td><b>Arun Kumar</b><small>Driver profile</small></td><td>Licence + vehicle</td><td>Today</td><td><span className="wt-status status-review">Sample pending</span></td><td><button className="wt-table-action">Review <ChevronRight size={13}/></button></td></tr><tr><td><b>Meera R</b><small>Driver profile</small></td><td>Vehicle document</td><td>Yesterday</td><td><span className="wt-status status-review">Sample pending</span></td><td><button className="wt-table-action">Review <ChevronRight size={13}/></button></td></tr></tbody></table></div></section><div className="wt-admin-warning"><ShieldCheck/><span><b>Administrative actions are not connected.</b><small>This dashboard is a design preview. Verification, suspension and incident handling require authenticated backend permissions.</small></span></div></DashboardLayout>;
+  return <DashboardLayout role="Admin"><div className="wt-dash-heading"><div><Eyebrow>PLATFORM OPERATIONS</Eyebrow><h1>Good morning, admin.</h1><p>Monitor platform experience and review community activity.</p></div><PreviewLabel/></div><div className="wt-dash-metrics"><Metric label="Registered users" value="1,284" detail="Illustrative number" icon={Users}/><Metric label="Driver reviews" value="36" detail="Illustrative queue" icon={FileCheck2}/><Metric label="Journey previews" value="142" detail="Sample records" icon={CarFront}/><Metric label="Safety reports" value="03" detail="Sample records" icon={ShieldCheck}/></div><section className="wt-panel wt-dash-section"><div className="wt-panel-heading"><div><h2>Verification queue preview</h2><p>Example records for the future administrator workflow.</p></div><span className="wt-sample-tag">NOT LIVE DATA</span></div><div className="wt-table-wrap"><table><thead><tr><th>Applicant</th><th>Submission</th><th>Received</th><th>Status</th><th>Action</th></tr></thead><tbody><tr><td><b>Arun Kumar</b><small>Driver profile</small></td><td>Licence + vehicle</td><td>Today</td><td><span className="wt-status status-review">Sample pending</span></td><td><button className="wt-table-action">Review <ChevronRight size={13}/></button></td></tr><tr><td><b>Meera R</b><small>Driver profile</small></td><td>Vehicle document</td><td>Yesterday</td><td><span className="wt-status status-review">Sample pending</span></td><td><button className="wt-table-action">Review <ChevronRight size={13}/></button></td></tr></tbody></table></div></section><div className="wt-admin-warning"><ShieldCheck/><span><b>Driver document review is available.</b><small>Open the protected queue to review uploaded driving licences, vehicle registration, insurance and vehicle photographs.</small></span><Link className="wt-btn wt-btn-primary" to="/admin/verification">Open verification queue <ArrowRight size={14}/></Link></div></DashboardLayout>;
 }
 function NotFound() {
   return <PublicLayout><main className="wt-page"><div className="wt-container wt-not-found"><Eyebrow>404 · ROUTE NOT FOUND</Eyebrow><h1>This route hasn't been mapped yet.</h1><p>Let's get you back on the right way.</p><Link to="/" className="wt-btn wt-btn-primary">Back to homepage <ArrowRight size={16}/></Link></div></main></PublicLayout>;
@@ -266,7 +476,7 @@ export default function Phase2App() {
   return <BrowserRouter><Routes>
     <Route path="/" element={<HomePage/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/journeys/:id" element={<JourneyDetailPage/>}/><Route path="/publish" element={<PublishPage/>}/>
     <Route path="/login" element={<AuthPage mode="login"/>}/><Route path="/register" element={<AuthPage mode="register"/>}/>
-    <Route path="/dashboard/passenger" element={<PassengerDashboard/>}/><Route path="/dashboard/driver" element={<DriverDashboard/>}/><Route path="/admin" element={<AdminDashboard/>}/>
+    <Route path="/dashboard/passenger" element={<PassengerDashboard/>}/><Route path="/dashboard/driver" element={<DriverDashboard/>}/><Route path="/driver/verification" element={<DriverVerificationPage/>}/><Route path="/admin" element={<AdminDashboard/>}/><Route path="/admin/verification" element={<AdminVerificationPage/>}/>
     <Route path="*" element={<NotFound/>}/>
   </Routes></BrowserRouter>;
 }

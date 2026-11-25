@@ -66,7 +66,7 @@ export async function apiRequest<T>(
   authenticated = false,
 ): Promise<T> {
   const headers = new Headers(options.headers);
-  if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (authenticated && accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
   let response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
@@ -79,4 +79,28 @@ export async function apiRequest<T>(
 
 export async function getCurrentUser() {
   return apiRequest<AuthUser>("/auth/me/", {}, true);
+}
+
+
+export async function downloadPrivateFile(path: string, filename: string): Promise<void> {
+  if (!accessToken) throw new Error("Sign in again to download this private document.");
+  const headers = new Headers({ Authorization: `Bearer ${accessToken}` });
+  let response = await fetch(`${API_BASE_URL}${path}`, { headers });
+  if (response.status === 401 && await refreshAccessToken()) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    response = await fetch(`${API_BASE_URL}${path}`, { headers });
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.detail || "The document could not be downloaded.");
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
