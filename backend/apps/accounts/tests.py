@@ -1,5 +1,6 @@
 import re
 from datetime import timedelta
+from django.contrib.auth.hashers import make_password
 from django.core import mail
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -143,7 +144,7 @@ class RegistrationAndVerificationTests(APITestCase):
         record = VerificationCode.objects.create(
             user=user,
             channel=VerificationCode.Channel.EMAIL,
-            code_hash="not-a-valid-hash",
+            code_hash=make_password("111111"),
             expires_at=timezone.now() + timedelta(minutes=10),
         )
         valid, _ = verify_code(user, "email", "000000")
