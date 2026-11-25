@@ -274,11 +274,12 @@ class BookingCancelView(APIView):
             if journey_has_departed(journey):
                 return Response({"detail": "Bookings cannot be cancelled after the journey has departed."}, status=409)
 
+            was_confirmed = booking.status == Booking.Status.CONFIRMED
             booking.status = Booking.Status.CANCELLED
             booking.cancelled_at = timezone.now()
             booking.cancelled_by = request.user
             booking.save(update_fields=["status", "cancelled_at", "cancelled_by", "updated_at"])
-            if booking.status == Booking.Status.CANCELLED:
+            if was_confirmed:
                 refresh_contribution_estimates(journey)
 
         return Response({"detail": "Booking cancelled. Confirmed seats have been released.", "booking": _read_booking(booking, request)})
