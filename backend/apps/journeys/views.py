@@ -1,8 +1,7 @@
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, status
@@ -166,9 +165,19 @@ class JourneyDetailView(APIView):
             .prefetch_related("stops"),
             pk=pk,
         )
-        if journey.status != Journey.Status.PUBLISHED and (
-            not request.user.is_authenticated or journey.driver_id != request.user.id
-        ):
+        if journey.status == Journey.Status.PUBLISHED:
+            is_visible = (
+                journey.driver.is_active
+                and journey.driver.is_email_verified
+                and journey.driver.is_phone_verified
+                and getattr(journey.driver, "driver_profile", None) is not None
+                and journey.driver.driver_profile.verification_status == DriverProfile.VerificationStatus.APPROVED
+                and journey.vehicle.verification_status == Vehicle.VerificationStatus.APPROVED
+                and journey.travel_date >= timezone.localdate()
+            )
+            if not is_visible:
+                return Response({"detail": "Journey not found."}, status=404)
+        elif not request.user.is_authenticated or journey.driver_id != request.user.id:
             return Response({"detail": "Journey not found."}, status=404)
         return Response(JourneySerializer(journey, context={"request": request}).data)
 
