@@ -11,7 +11,8 @@ import {
   getMySafetyReports, getNotifications, markAllNotificationsRead,
   markNotificationRead, sendBookingMessage, submitJourneyReview,
   type BookingMessageRecord, type EmergencyContactRecord,
-  type JourneyReviewRecord, type NotificationRecord, type SafetyReportRecord,
+  type AdminSafetyReportRecord, type JourneyReviewRecord, type NotificationRecord, type SafetyReportRecord,
+  getAdminSafetyReports, updateAdminSafetyReport,
 } from "../services/trust";
 
 type WorkspaceRole="Passenger"|"Driver";
@@ -266,5 +267,52 @@ export function JourneyReviewsContent({role}:{role:WorkspaceRole}) {
         <section className="wt-panel wt-safety-card"><h2>Reviews written</h2>{written.length===0?<p className="wt-message-empty">You haven't written any reviews yet.</p>:written.map(review=><article className="wt-review-row" key={review.id}><b>For {review.reviewee_name} <span>{review.rating}/5 ★</span></b><small>Booking #{review.booking_id} · {new Date(review.created_at).toLocaleDateString("en-IN")}</small>{review.comment&&<p>{review.comment}</p>}</article>)}</section>
       </div>
     </>}
+  </div>;
+}
+
+
+export function AdminSafetyReportsContent() {
+  const [reports,setReports]=useState<AdminSafetyReportRecord[]>([]);
+  const [filter,setFilter]=useState("open");
+  const [notes,setNotes]=useState<Record<number,string>>({});
+  const [statuses,setStatuses]=useState<Record<number,string>>({});
+  const [loading,setLoading]=useState(true);
+  const [busyId,setBusyId]=useState<number|null>(null);
+  const [error,setError]=useState("");
+  const [notice,setNotice]=useState("");
+  const load=()=>{
+    setLoading(true);setError("");
+    getAdminSafetyReports(filter).then(setReports)
+      .catch(err=>setError(err instanceof Error?err.message:"Administrator access is required to view safety reports."))
+      .finally(()=>setLoading(false));
+  };
+  useEffect(()=>{load();},[filter]);
+  const save=async(report:AdminSafetyReportRecord)=>{
+    setBusyId(report.id);setError("");setNotice("");
+    try{
+      const result=await updateAdminSafetyReport(report.id,{
+        status:statuses[report.id]??report.status,
+        admin_note:notes[report.id]??report.admin_note,
+      });
+      setNotice(result.detail);load();
+    }catch(err){setError(err instanceof Error?err.message:"Safety report could not be updated.");}
+    finally{setBusyId(null);}
+  };
+  return <div className="wt-market-dashboard-page">
+    <div className="wt-dash-heading"><div><span className="wt-eyebrow">ADMINISTRATOR · SAFETY</span><h1>Safety reports.</h1><p>Review confidential reports submitted by journey participants.</p></div><span className="wt-booking-status wt-booking-pending">Private admin queue</span></div>
+    <div className="wt-verification-intro"><ShieldAlert/><div><b>Handle reports confidentially</b><small>Report descriptions and reporter details are restricted to staff. Do not copy personal or sensitive report details into public comments.</small></div></div>
+    {error&&<TrustNotice text={error} kind="error"/>}{notice&&<TrustNotice text={notice}/>}
+    <div className="wt-booking-filter-row"><label><span>Report status</span><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="open">Open</option><option value="reviewing">Under review</option><option value="resolved">Resolved</option><option value="closed">Closed</option><option value="">All reports</option></select></label><button className="wt-btn wt-btn-outline" type="button" onClick={load}><RefreshCw size={14}/> Refresh</button></div>
+    {loading?<div className="wt-market-empty"><RefreshCw className="wt-spin"/>Loading safety reports…</div>:reports.length===0?<TrustEmpty title="No reports in this queue." body="Reports that match the selected status will appear here."/>:
+      <div className="wt-admin-safety-list">{reports.map(report=><article className="wt-panel wt-admin-safety-card" key={report.id}>
+        <div className="wt-booking-card-head"><span>Report #{report.id} · {report.category_display}</span><span className={"wt-booking-status wt-booking-"+(report.priority==="urgent"?"declined":report.priority==="high"?"pending":"cancelled")}>{report.priority} priority</span></div>
+        <div className="wt-admin-safety-meta"><span>Reporter <b>{report.reporter_name} · {report.reporter_email}</b></span><span>Reported user <b>{report.reported_user_name??"Not specified"}</b></span><span>Booking <b>{report.booking_id??"—"}</b></span><span>Journey <b>{report.journey_id??"—"}</b></span><span>Submitted <b>{new Date(report.created_at).toLocaleString("en-IN")}</b></span></div>
+        <p className="wt-admin-safety-description">{report.description}</p>
+        <div className="wt-admin-safety-controls">
+          <label className="wt-field"><span>Status</span><select value={statuses[report.id]??report.status} onChange={e=>setStatuses(v=>({...v,[report.id]:e.target.value}))}><option value="open">Open</option><option value="reviewing">Under review</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></label>
+          <label className="wt-field"><span>Private admin note</span><textarea rows={2} maxLength={1000} value={notes[report.id]??report.admin_note} onChange={e=>setNotes(v=>({...v,[report.id]:e.target.value}))} placeholder="Internal handling note"/></label>
+          <button className="wt-btn wt-btn-primary" type="button" disabled={busyId===report.id} onClick={()=>save(report)}>Save update <Check size={14}/></button>
+        </div>
+      </article>)}</div>}
   </div>;
 }
