@@ -421,3 +421,16 @@ The backend writes notifications for booking requests, booking approval/decline/
 - No attachments or direct exchange of phone/email details in message threads.
 - No automated moderation or guarantee of report resolution.
 - Reviews are private to the reviewer/reviewee account APIs; no public rating score or search ranking is calculated in this phase.
+
+
+## Phase 10 — production security and deployment
+
+- Production mode (`DJANGO_DEBUG=false`) requires a unique 50+ character secret, explicit allowed hosts, PostgreSQL, exact CORS and CSRF origins, HTTPS redirect and HSTS. The service fails fast on unsafe/missing core configuration.
+- Configure the reverse proxy header with `DJANGO_SECURE_PROXY_SSL_HEADER=true` behind Render's HTTPS proxy. Keep `DJANGO_SECURE_SSL_REDIRECT=true` and HSTS enabled only when the service is reachable through HTTPS.
+- Install and run the production WSGI server with `gunicorn`; WhiteNoise serves Django admin/static assets. Render build command: `pip install -r requirements.txt && python manage.py collectstatic --noinput`. Start command: `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120`. Use a pre-deploy release command for `python manage.py migrate --noinput` where available.
+- The API uses SimpleJWT refresh rotation and blacklisting. Revoke a refresh token with `POST /api/v1/auth/token/blacklist/`; the browser sign-out flow calls this endpoint and clears local in-memory tokens.
+- Dashboard routes call the authenticated profile endpoint and enforce the signed-in role before rendering the workspace. API permissions remain authoritative.
+- The frontend intentionally keeps tokens in memory and signs users out on full page reload. A reviewed HttpOnly/SameSite cookie or BFF session strategy is still required before public production launch. Do not use localStorage for refresh tokens.
+- Phone OTP console logging is disabled outside DEBUG. Production phone verification still requires an approved SMS provider.
+- Store verification documents on a private persistent disk/object store, never a public static/media route. Add malware scanning, backups and retention procedures.
+- Run `python manage.py check --deploy`, `python manage.py makemigrations --check --dry-run` and `python manage.py test` before release. See [Phase 10 deployment readiness](../docs/PHASE_10_TESTING_SECURITY_DEPLOYMENT.md) for environment variables and remaining launch gates.

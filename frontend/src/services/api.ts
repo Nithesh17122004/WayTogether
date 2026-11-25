@@ -26,6 +26,23 @@ export function clearAuthTokens() {
   refreshToken = null;
 }
 
+export async function logoutCurrentSession(): Promise<void> {
+  const tokenToRevoke = refreshToken;
+  clearAuthTokens();
+
+  // Local sign-out is immediate even when the network is unavailable.
+  if (!tokenToRevoke) return;
+  try {
+    await fetch(`${API_BASE_URL}/auth/token/blacklist/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh: tokenToRevoke }),
+    });
+  } catch {
+    // The browser session is cleared; an expired refresh token will also become unusable.
+  }
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {

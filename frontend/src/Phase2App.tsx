@@ -1,5 +1,5 @@
 import "./phase2.css";
-import { apiRequest, downloadPrivateFile, setAuthTokens } from "./services/api";
+import { apiRequest, downloadPrivateFile, getCurrentUser, logoutCurrentSession, setAuthTokens } from "./services/api";
 import { JourneyDetailContent, JourneyPublishContent, JourneySearchContent, MyJourneysContent } from "./pages/JourneyPages";
 import { DriverBookingRequestsContent, PassengerBookingsContent } from "./pages/BookingPages";
 import { DriverFinanceContent, PassengerFinanceContent } from "./pages/FinancePages";
@@ -224,8 +224,23 @@ function AuthPage({ mode }: { mode: AuthMode }) {
 const passengerMenu=[{label:"Overview",to:"/dashboard/passenger",icon:LayoutDashboard},{label:"My bookings",to:"/dashboard/passenger/bookings",icon:CalendarDays},{label:"Expense contributions",to:"/dashboard/passenger/finance",icon:Wallet},{label:"Messages",to:"/dashboard/passenger/messages",icon:MessageCircle},{label:"Notifications",to:"/dashboard/passenger/notifications",icon:Bell},{label:"Safety centre",to:"/dashboard/passenger/safety",icon:ShieldCheck},{label:"Reviews",to:"/dashboard/passenger/reviews",icon:Star},{label:"Saved journeys",to:"/dashboard/passenger",icon:Compass},{label:"Profile",to:"/dashboard/passenger",icon:Settings}];
 function DashboardLayout({role,children}:{role:"Passenger"|"Driver"|"Admin";children:ReactNode}) {
   const [open,setOpen]=useState(false);
+  const [authorised,setAuthorised]=useState(false);
+  const navigate=useNavigate();
+  useEffect(()=>{
+    let active=true;
+    const rolePaths={passenger:"/dashboard/passenger",driver:"/dashboard/driver",admin:"/admin"};
+    const expectedRole=role==="Passenger"?"passenger":role==="Driver"?"driver":"admin";
+    getCurrentUser().then(user=>{
+      if(!active)return;
+      if(user.role!==expectedRole){navigate(rolePaths[user.role],{replace:true});return;}
+      setAuthorised(true);
+    }).catch(()=>{if(active)navigate("/login",{replace:true});});
+    return()=>{active=false;};
+  },[role,navigate]);
+  const signOut=async()=>{await logoutCurrentSession();navigate("/login",{replace:true});};
   const links=role==="Driver"?[{label:"Overview",to:"/dashboard/driver",icon:LayoutDashboard},{label:"My journeys",to:"/dashboard/driver/journeys",icon:CarFront},{label:"Booking requests",to:"/dashboard/driver/bookings",icon:Users},{label:"Expense records",to:"/dashboard/driver/finance",icon:Wallet},{label:"Messages",to:"/dashboard/driver/messages",icon:MessageCircle},{label:"Notifications",to:"/dashboard/driver/notifications",icon:Bell},{label:"Safety centre",to:"/dashboard/driver/safety",icon:ShieldCheck},{label:"Reviews",to:"/dashboard/driver/reviews",icon:Star},{label:"Vehicle & documents",to:"/driver/verification",icon:FileCheck2},{label:"Profile",to:"/dashboard/driver",icon:Settings}]:role==="Admin"?[{label:"Overview",to:"/admin",icon:LayoutDashboard},{label:"Users",to:"/admin/users",icon:Users},{label:"Verification queue",to:"/admin/verification",icon:FileCheck2},{label:"Journeys",to:"/admin/journeys",icon:CarFront},{label:"Bookings",to:"/admin/bookings",icon:CalendarDays},{label:"Expense ledger",to:"/admin/finance",icon:Wallet},{label:"Safety reports",to:"/admin/safety",icon:ShieldCheck}]:passengerMenu;
-  return <div className="wt-dashboard"><aside className={open?"wt-sidebar is-open":"wt-sidebar"}><div className="wt-sidebar-brand"><Brand/><button onClick={()=>setOpen(false)} aria-label="Close menu"><X/></button></div><div className="wt-side-label">{role} workspace</div><nav>{links.map(item=>{const Icon=item.icon;return <NavLink key={item.label} to={item.to} end className={({isActive})=>isActive?"active":""} onClick={()=>setOpen(false)}><Icon size={17}/>{item.label}</NavLink>;})}</nav><div className="wt-sidebar-bottom"><Link to="/"><Compass size={16}/> View public website</Link><Link to="/login"><LogOut size={16}/> Sign out preview</Link></div></aside><div className="wt-dashboard-main"><header className="wt-dashboard-top"><button className="wt-dash-menu" onClick={()=>setOpen(true)} aria-label="Open dashboard menu"><Menu/></button><div className="wt-dash-top-title"><span>WayTogether / {role}</span><b>{role} dashboard</b></div><div className="wt-dash-top-actions"><button aria-label="Help"><CircleHelp/></button><Link to={role==="Driver"?"/dashboard/driver/notifications":role==="Passenger"?"/dashboard/passenger/notifications":"/admin"} aria-label="Notifications"><Bell/></Link><span className="wt-small-user">{role==="Driver"?"AK":role==="Admin"?"AD":"MR"}</span></div></header><main className="wt-dashboard-content">{children}</main></div></div>;
+  if(!authorised)return <main className="wt-auth-wait" role="status">Checking your account access…</main>;
+  return <div className="wt-dashboard"><aside className={open?"wt-sidebar is-open":"wt-sidebar"}><div className="wt-sidebar-brand"><Brand/><button onClick={()=>setOpen(false)} aria-label="Close menu"><X/></button></div><div className="wt-side-label">{role} workspace</div><nav>{links.map(item=>{const Icon=item.icon;return <NavLink key={item.label} to={item.to} end className={({isActive})=>isActive?"active":""} onClick={()=>setOpen(false)}><Icon size={17}/>{item.label}</NavLink>;})}</nav><div className="wt-sidebar-bottom"><Link to="/"><Compass size={16}/> View public website</Link><button type="button" onClick={()=>void signOut()}><LogOut size={16}/> Sign out</button></div></aside><div className="wt-dashboard-main"><header className="wt-dashboard-top"><button className="wt-dash-menu" onClick={()=>setOpen(true)} aria-label="Open dashboard menu"><Menu/></button><div className="wt-dash-top-title"><span>WayTogether / {role}</span><b>{role} dashboard</b></div><div className="wt-dash-top-actions"><button aria-label="Help"><CircleHelp/></button><Link to={role==="Driver"?"/dashboard/driver/notifications":role==="Passenger"?"/dashboard/passenger/notifications":"/admin"} aria-label="Notifications"><Bell/></Link><span className="wt-small-user">{role==="Driver"?"AK":role==="Admin"?"AD":"MR"}</span></div></header><main className="wt-dashboard-content">{children}</main></div></div>;
 }
 
 type DriverProfileRecord = {

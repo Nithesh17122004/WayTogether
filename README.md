@@ -73,14 +73,14 @@ The website now supports API-backed driver KYC, vehicle verification, journey pu
 7. Payments and financial management — expense settlement and sandbox simulation implemented; live payments remain disabled
 8. Communication, safety and trust — implemented in Phase 8
 9. Admin panel and analytics — implemented in Phase 9
-10. Testing, security and deployment
+10. Testing, security and deployment — security hardening, CI deployment checks and deployment guide implemented in Phase 10; external launch gates remain
 
-See the `docs/` directory for full product requirements, architecture, roadmap and brand guidance.
+See the `docs/` directory for full product requirements, architecture, roadmap, brand guidance and the Phase 10 deployment-readiness checklist.
 
 ## Core product safeguards
 
 - Drivers must independently plan journeys and attest that they would travel without passengers.
-- Passenger contributions are estimates of eligible journey expenses, not fares or driver income; provisional shares are recalculated as confirmed seat occupancy changes. Final payment allocation is still pending.
+- Passenger contributions are estimates of eligible journey expenses, not fares or driver income; provisional shares are recalculated as confirmed seat occupancy changes, and final cost allocations are recorded after completed journeys. Live money collection, driver payouts and payment-provider integration remain disabled.
 - Passenger contributions are intended for eligible journey-expense sharing, not driver profit.
 - Platform fees must be separately disclosed and used only after legal and tax review.
 - Live payments and payouts must not be enabled until the operating model, insurance, tax position and payment provider are approved.
