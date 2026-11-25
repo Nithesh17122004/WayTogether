@@ -2,12 +2,13 @@ import "./phase2.css";
 import { apiRequest, downloadPrivateFile, setAuthTokens } from "./services/api";
 import { JourneyDetailContent, JourneyPublishContent, JourneySearchContent, MyJourneysContent } from "./pages/JourneyPages";
 import { DriverBookingRequestsContent, PassengerBookingsContent } from "./pages/BookingPages";
+import { DriverFinanceContent, PassengerFinanceContent } from "./pages/FinancePages";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownUp, ArrowRight, ArrowUpRight, BadgeCheck, Bell, CalendarDays,
   CarFront, Check, ChevronRight, CircleHelp, Compass, FileCheck2,
   LayoutDashboard, LogOut, MapPin, Menu, MessageCircle, Plus, Search,
-  Settings, ShieldCheck, Sparkles, Star, Users, X,
+  Settings, ShieldCheck, Sparkles, Star, Users, Wallet, X,
 } from "lucide-react";
 import {
   BrowserRouter, Link, NavLink, Route, Routes, useNavigate,
@@ -218,10 +219,10 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   </div></main></PublicLayout>;
 }
 
-const passengerMenu=[{label:"Overview",to:"/dashboard/passenger",icon:LayoutDashboard},{label:"My bookings",to:"/dashboard/passenger/bookings",icon:CalendarDays},{label:"Messages",to:"/dashboard/passenger",icon:MessageCircle},{label:"Saved journeys",to:"/dashboard/passenger",icon:Compass},{label:"Profile",to:"/dashboard/passenger",icon:Settings}];
+const passengerMenu=[{label:"Overview",to:"/dashboard/passenger",icon:LayoutDashboard},{label:"My bookings",to:"/dashboard/passenger/bookings",icon:CalendarDays},{label:"Expense contributions",to:"/dashboard/passenger/finance",icon:Wallet},{label:"Messages",to:"/dashboard/passenger",icon:MessageCircle},{label:"Saved journeys",to:"/dashboard/passenger",icon:Compass},{label:"Profile",to:"/dashboard/passenger",icon:Settings}];
 function DashboardLayout({role,children}:{role:"Passenger"|"Driver"|"Admin";children:ReactNode}) {
   const [open,setOpen]=useState(false);
-  const links=role==="Driver"?[{label:"Overview",to:"/dashboard/driver",icon:LayoutDashboard},{label:"My journeys",to:"/dashboard/driver/journeys",icon:CarFront},{label:"Booking requests",to:"/dashboard/driver/bookings",icon:Users},{label:"Vehicle & documents",to:"/driver/verification",icon:FileCheck2},{label:"Profile",to:"/dashboard/driver",icon:Settings}]:role==="Admin"?[{label:"Overview",to:"/admin",icon:LayoutDashboard},{label:"Users",to:"/admin",icon:Users},{label:"Verification queue",to:"/admin/verification",icon:FileCheck2},{label:"Journeys",to:"/admin",icon:CarFront},{label:"Reports",to:"/admin",icon:ShieldCheck}]:passengerMenu;
+  const links=role==="Driver"?[{label:"Overview",to:"/dashboard/driver",icon:LayoutDashboard},{label:"My journeys",to:"/dashboard/driver/journeys",icon:CarFront},{label:"Booking requests",to:"/dashboard/driver/bookings",icon:Users},{label:"Expense records",to:"/dashboard/driver/finance",icon:Wallet},{label:"Vehicle & documents",to:"/driver/verification",icon:FileCheck2},{label:"Profile",to:"/dashboard/driver",icon:Settings}]:role==="Admin"?[{label:"Overview",to:"/admin",icon:LayoutDashboard},{label:"Users",to:"/admin",icon:Users},{label:"Verification queue",to:"/admin/verification",icon:FileCheck2},{label:"Journeys",to:"/admin",icon:CarFront},{label:"Reports",to:"/admin",icon:ShieldCheck}]:passengerMenu;
   return <div className="wt-dashboard"><aside className={open?"wt-sidebar is-open":"wt-sidebar"}><div className="wt-sidebar-brand"><Brand/><button onClick={()=>setOpen(false)} aria-label="Close menu"><X/></button></div><div className="wt-side-label">{role} workspace</div><nav>{links.map(item=>{const Icon=item.icon;return <NavLink key={item.label} to={item.to} end className={({isActive})=>isActive?"active":""} onClick={()=>setOpen(false)}><Icon size={17}/>{item.label}</NavLink>;})}</nav><div className="wt-sidebar-bottom"><Link to="/"><Compass size={16}/> View public website</Link><Link to="/login"><LogOut size={16}/> Sign out preview</Link></div></aside><div className="wt-dashboard-main"><header className="wt-dashboard-top"><button className="wt-dash-menu" onClick={()=>setOpen(true)} aria-label="Open dashboard menu"><Menu/></button><div className="wt-dash-top-title"><span>WayTogether / {role}</span><b>{role} dashboard</b></div><div className="wt-dash-top-actions"><button aria-label="Help"><CircleHelp/></button><button aria-label="Notifications"><Bell/></button><span className="wt-small-user">{role==="Driver"?"AK":role==="Admin"?"AD":"MR"}</span></div></header><main className="wt-dashboard-content">{children}</main></div></div>;
 }
 
@@ -454,7 +455,7 @@ export default function Phase2App() {
   return <BrowserRouter><Routes>
     <Route path="/" element={<HomePage/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/journeys/:id" element={<JourneyDetailPage/>}/><Route path="/publish" element={<PublishPage/>}/>
     <Route path="/login" element={<AuthPage mode="login"/>}/><Route path="/register" element={<AuthPage mode="register"/>}/>
-    <Route path="/dashboard/passenger" element={<PassengerDashboard/>}/><Route path="/dashboard/passenger/bookings" element={<DashboardLayout role="Passenger"><PassengerBookingsContent/></DashboardLayout>}/><Route path="/dashboard/driver" element={<DriverDashboard/>}/><Route path="/dashboard/driver/bookings" element={<DashboardLayout role="Driver"><DriverBookingRequestsContent/></DashboardLayout>}/><Route path="/dashboard/driver/journeys" element={<DashboardLayout role="Driver"><MyJourneysContent/></DashboardLayout>}/><Route path="/driver/verification" element={<DriverVerificationPage/>}/><Route path="/admin" element={<AdminDashboard/>}/><Route path="/admin/verification" element={<AdminVerificationPage/>}/>
+    <Route path="/dashboard/passenger" element={<PassengerDashboard/>}/><Route path="/dashboard/passenger/bookings" element={<DashboardLayout role="Passenger"><PassengerBookingsContent/></DashboardLayout>}/><Route path="/dashboard/passenger/finance" element={<DashboardLayout role="Passenger"><PassengerFinanceContent/></DashboardLayout>}/><Route path="/dashboard/driver" element={<DriverDashboard/>}/><Route path="/dashboard/driver/bookings" element={<DashboardLayout role="Driver"><DriverBookingRequestsContent/></DashboardLayout>}/><Route path="/dashboard/driver/finance" element={<DashboardLayout role="Driver"><DriverFinanceContent/></DashboardLayout>}/><Route path="/dashboard/driver/journeys" element={<DashboardLayout role="Driver"><MyJourneysContent/></DashboardLayout>}/><Route path="/driver/verification" element={<DriverVerificationPage/>}/><Route path="/admin" element={<AdminDashboard/>}/><Route path="/admin/verification" element={<AdminVerificationPage/>}/>
     <Route path="*" element={<NotFound/>}/>
   </Routes></BrowserRouter>;
 }
