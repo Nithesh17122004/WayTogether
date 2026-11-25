@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from .models import User, VerificationCode
-from .services import issue_verification_code, verify_code
+from .services import OTPDeliveryUnavailable, issue_verification_code, verify_code
 
 
 @override_settings(
@@ -131,6 +131,35 @@ class RegistrationAndVerificationTests(APITestCase):
         self.assertEqual(profile.status_code, 200)
         self.assertEqual(profile.data["email"], user.email)
 
+    def test_logout_blacklists_refresh_token_and_refresh_cannot_reuse_it(self):
+        user = User.objects.create_user(
+            email="logout@example.com",
+            phone="+919876543219",
+            password="A-Strong-Unique-Password-928!",
+            is_email_verified=True,
+            is_phone_verified=True,
+        )
+        login = self.client.post(
+            "/api/v1/auth/login/",
+            {"email": user.email, "password": "A-Strong-Unique-Password-928!"},
+            format="json",
+        )
+        self.assertEqual(login.status_code, 200)
+
+        logout = self.client.post(
+            "/api/v1/auth/token/blacklist/",
+            {"refresh": login.data["refresh"]},
+            format="json",
+        )
+        self.assertEqual(logout.status_code, 200)
+
+        refresh = self.client.post(
+            "/api/v1/auth/token/refresh/",
+            {"refresh": login.data["refresh"]},
+            format="json",
+        )
+        self.assertEqual(refresh.status_code, 401)
+
     def test_profile_requires_authentication(self):
         response = self.client.get("/api/v1/auth/me/")
         self.assertEqual(response.status_code, 401)
@@ -177,6 +206,14 @@ class VerificationServiceTests(TestCase):
             email="service@example.com",
             phone="+919876543211",
             password="A-Strong-Unique-Password-928!",
+        )
+
+    @override_settings(DEBUG=False, SMS_OTP_CONSOLE=True)
+    def test_phone_otp_is_never_logged_or_kept_when_debug_is_disabled(self):
+        with self.assertRaises(OTPDeliveryUnavailable):
+            issue_verification_code(self.user, VerificationCode.Channel.PHONE)
+        self.assertFalse(
+            VerificationCode.objects.filter(user=self.user, channel=VerificationCode.Channel.PHONE).exists()
         )
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
