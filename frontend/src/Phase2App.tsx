@@ -20,7 +20,6 @@ function Brand() {
   return <Link className="wt-brand" to="/" aria-label="WayTogether home"><img className="wt-brand-image" src="/waytogether-logo.svg" alt="" aria-hidden="true"/><span className="wt-brand-word">Way<span>Together</span></span></Link>;
 }
 function Eyebrow({ children }: { children: ReactNode }) { return <span className="wt-eyebrow">{children}</span>; }
-function PreviewLabel() { return <span className="wt-preview-label"><i/> DESIGN PREVIEW · SAMPLE DATA</span>; }
 
 function PublicHeader() {
   const [open, setOpen] = useState(false);
