@@ -315,6 +315,8 @@ class JourneyApiTests(APITestCase):
 
     @patch("apps.journeys.views.get_route_preview")
     def test_route_preview_returns_distance_duration_and_geometry(self, route_mock):
+        driver, _ = self.create_driver()
+        self.client.force_authenticate(driver)
         route_mock.return_value = {
             "distance_km": 350.2,
             "duration_minutes": 380,
