@@ -16,16 +16,32 @@ Set `VITE_API_BASE_URL` to the Django API base path. By default, the frontend ca
 
 ## Available routes
 - `/` — Public homepage
-- `/search` — Journey search and sample result cards
-- `/journeys/:id` — Journey details preview
-- `/publish` — Journey draft form
+- `/search` — Live journey search by origin, destination, date, seats and radius
+- `/journeys/:id` — Published journey details, route and intermediate stops
+- `/publish` — Driver journey draft creation and publication
 - `/login` — API-connected sign-in
 - `/register` — API-connected registration and email/mobile verification
-- `/dashboard/passenger` — Passenger dashboard preview
+- `/dashboard/passenger` — Passenger dashboard (booking data comes in Phase 6)
 - `/dashboard/driver` — Driver dashboard overview
+- `/dashboard/driver/journeys` — API-backed driver drafts and published journeys
 - `/driver/verification` — Driver profile, vehicle registration, document upload and submission
-- `/admin` — Admin dashboard preview
+- `/admin` — Admin dashboard overview
 - `/admin/verification` — Staff-only document review queue
+
+## Journey search and publishing (Phase 5)
+- Search locations by entering a full city, town or landmark and pressing **Find**. The location picker intentionally does not call the public geocoder on every keystroke.
+- Select the origin and destination from search results.
+- Search matches both endpoints against an ordered journey path, including saved intermediate stops.
+- Drivers can save a journey as a draft and publish only after driver and vehicle verification is approved.
+- Expense entries are estimates for fuel, tolls, parking and other eligible shared costs. The displayed per-passenger estimate assumes every offered passenger seat is occupied, including the driver in the split.
+- A final passenger cost allocation, seat reservation, payment or payout is not implemented until Phase 6/7.
+
+## Map configuration
+- During local development, the Leaflet map uses the standard OpenStreetMap raster tiles by default.
+- Before production, configure `VITE_OSM_TILE_URL` and `VITE_OSM_TILE_ATTRIBUTION` to a tile provider whose terms explicitly permit your commercial use, or self-host tiles.
+- Keep provider attribution visible and honour caching. Do not use bulk/offline tile downloads.
+- The road-route line, distance and duration are optional. Configure `OSRM_ROUTE_URL` on the backend with a provider permitted for your deployment. It is deliberately blank by default.
+- Location lookup is user-triggered, cached and globally limited to one uncached request per second. Before scaling the backend to multiple instances, use a shared cache (for example Redis) to enforce that limit across instances.
 
 ## Authentication
 - Registration and login call Django authentication endpoints.
@@ -41,4 +57,4 @@ Set `VITE_API_BASE_URL` to the Django API base path. By default, the frontend ca
 - Admin verification requires a Django staff account.
 - Use persistent private file storage in production. Do not expose the Django media directory through a public URL.
 
-Journey search, publishing, bookings, messaging and payment flows remain unconnected. Driver/vehicle records and documents are API-backed in this phase; journeys are still illustrative.
+Bookings, seat locking, payments, refunds, payouts, messaging and live tracking are not active in this phase.
