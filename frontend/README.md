@@ -58,3 +58,15 @@ Set `VITE_API_BASE_URL` to the Django API base path. By default, the frontend ca
 - Use persistent private file storage in production. Do not expose the Django media directory through a public URL.
 
 Bookings, seat locking, payments, refunds, payouts, messaging and live tracking are not active in this phase.
+
+
+## Booking and seat management (Phase 6)
+- Passenger journey pages allow requests for one or more available seats.
+- Pending requests are sent to the driver and do not hold seats.
+- Drivers review requests in `/dashboard/driver/bookings`, then approve or decline.
+- Approving a request reserves its seats, with the server checking capacity inside a database transaction.
+- Passenger booking history is available at `/dashboard/passenger/bookings`.
+- Passengers can cancel their own pending/confirmed bookings before departure.
+- Driver cancellation of a journey closes its pending and confirmed bookings.
+- Search and journey details show confirmed and available seat counts.
+- Provisional expense shares are recalculated after confirmations/cancellations; they are not final prices and no money is collected.
