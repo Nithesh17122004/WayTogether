@@ -275,3 +275,86 @@ The approve/cancel journey workflows use `transaction.atomic()` and `select_for_
 - No in-app contact detail exchange.
 - No check-in/live journey tracking or completion workflow.
 - No automatic release/expiry of pending requests before departure.
+
+
+## Financial management and sandbox API (Phase 7)
+
+All endpoints are prefixed with `/api/v1/finance/`.
+
+| Method | Endpoint | Access | Purpose |
+|---|---|---|---|
+| POST | `journeys/{journey_id}/settlement/` | Verified owning Driver | Finalize actual eligible expenses after departure |
+| GET | `journeys/{journey_id}/settlement/` | Owning Driver | View the final expense breakdown and driver cost share |
+| GET | `contributions/mine/` | Verified Passenger | View only the passenger's own final contribution records |
+| POST | `contributions/{contribution_id}/sandbox-payment/` | Contribution owner | Create/reuse a fake sandbox payment record |
+| POST | `payments/{payment_id}/sandbox-result/` | Payment owner | Simulate a successful or failed sandbox result |
+| POST | `payments/{payment_id}/sandbox-refund/` | Django staff administrator | Record a simulated full refund |
+
+### Driver final-expense submission
+
+The driver submits the actual eligible expense totals after scheduled departure:
+
+```json
+{
+  "actual_fuel_expense": "1250.00",
+  "actual_toll_expense": "240.00",
+  "actual_parking_expense": "0.00",
+  "actual_other_expense": "50.00",
+  "actual_expense_note": "Fuel and tolls paid during the trip."
+}
+```
+
+The server:
+1. Locks the Journey row.
+2. Requires the authenticated, verified owning Driver and a published journey whose departure time has passed.
+3. Takes a locked snapshot of the confirmed bookings.
+4. Calculates the eligible actual total and passenger-seat occupancy.
+5. Allocates the total across the driver plus every confirmed passenger seat.
+6. Stores an immutable contribution for each confirmed booking.
+7. Assigns any paise rounding remainder to the driver's own share so the ledger reconciles exactly.
+8. Marks the journey completed and locks the settlement.
+
+Only confirmed bookings are included. Declined, pending and cancelled requests do not receive a contribution record. A booking for multiple seats receives the per-seat share multiplied by its seat count.
+
+### Expense split example
+
+For eligible actual expenses of ₹1,540.00, two confirmed passenger seats and one driver:
+
+- People/seat units: 3 (driver + 2 passenger seats)
+- Passenger share per seat: ₹513.33
+- Driver share: ₹513.34 (includes the ₹0.01 rounding remainder)
+- Passenger contribution total: ₹1,026.66
+- Driver contribution: ₹513.34
+- Ledger total: ₹1,540.00
+
+The values are cost-sharing calculations, not a fare, profit, fee, or payment instruction. Driver share is the driver's own portion of the trip cost. It is not income or a payout.
+
+### Fake sandbox payment workflow
+
+The sandbox workflow stores test records only:
+- Starting a sandbox payment creates a `SandboxPayment` row with provider `sandbox` and status `created`.
+- The passenger can simulate `succeeded` or `failed`.
+- A failed attempt can be retried; an active/successful attempt cannot be duplicated.
+- A Django staff administrator can create a full simulated refund for a successful test payment.
+- Sandbox payment/refund references are internal UUIDs, not payment-provider references.
+
+No provider SDK, HTTP gateway request, card field, UPI intent, bank transfer, escrow, driver payout, platform fee or live charge exists in this phase. A sandbox "success" only changes a database state. It is not evidence that money was received.
+
+### Safety flags
+- `FINANCE_SANDBOX_ENABLED`: controls fake test actions. Local development defaults on when `DEBUG=true`; production defaults off when `DEBUG=false`.
+- `LIVE_PAYMENTS_ENABLED`: hard-coded to `False` in this phase. There is no live payment path.
+
+Do not enable sandbox simulation in a production environment unless it is a controlled, access-restricted test deployment. Never put production gateway credentials into this code path.
+
+### Data visibility
+- A passenger can see only their own contribution/payment records.
+- A driver can see only the settlement for their own journey, including their own cost share.
+- Only Django staff administrators can record simulated refunds.
+- Sandbox refund records are clearly separate from any real refund process.
+
+### Phase 7 limits
+- No live Razorpay, Cashfree, Stripe, UPI, card or bank integration.
+- No live payment collection, refunds, escrow, settlement to a driver or payout.
+- No commission, platform fee, tax calculation or GST invoice generation.
+- No receipt upload or independent proof verification of driver's entered expenses.
+- Expense totals are driver-declared and remain subject to product, legal and policy review.
