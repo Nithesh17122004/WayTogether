@@ -82,6 +82,20 @@ function JourneyDetailPage() {
 function PublishPage() {
   return <PublicLayout><JourneyPublishContent/></PublicLayout>;
 }
+type AuthMode = "login" | "register";
+type VerificationChannel = "email" | "phone";
+type RegisterResult = {
+  detail: string;
+  user: { email: string; phone: string; role: string };
+  verification: { email: string; phone: string };
+  delivery_notes?: Record<string,string>;
+};
+type LoginResult = {
+  access: string;
+  refresh: string;
+  user: { role: "passenger" | "driver" | "admin"; display_name: string };
+};
+
 function AuthPage({ mode }: { mode: AuthMode }) {
   const navigate = useNavigate();
   const isRegister = mode === "register";
