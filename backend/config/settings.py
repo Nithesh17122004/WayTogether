@@ -136,7 +136,7 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    SECURE_REFERRER_POLICY = "same-origin"
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
 
 from datetime import timedelta
