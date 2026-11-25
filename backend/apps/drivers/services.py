@@ -136,4 +136,11 @@ def submit_vehicle_for_review(owner, vehicle):
 
     vehicle.verification_status = Vehicle.VerificationStatus.PENDING
     vehicle.save(update_fields=["verification_status", "updated_at"])
+
+    # Documents may already have been reviewed while the driver was preparing
+    # the submission. Recalculate immediately so an already-complete file set
+    # does not remain stuck in Pending Review.
+    recompute_vehicle_status(vehicle)
+    recompute_driver_status(owner)
+    profile.refresh_from_db()
     return profile, []
