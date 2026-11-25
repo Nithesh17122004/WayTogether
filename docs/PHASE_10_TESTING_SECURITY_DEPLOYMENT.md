@@ -53,7 +53,7 @@ python manage.py check
 python manage.py check --deploy
 python manage.py makemigrations --check --dry-run
 python manage.py test
-``
+```
 
 The production check requires real production environment variables. Do not reuse CI placeholder values in a deployed service.
 
