@@ -38,6 +38,9 @@ jobs:
       - name: Django system check
         working-directory: backend
         run: python manage.py check
+      - name: Check migration consistency
+        working-directory: backend
+        run: python manage.py makemigrations --check --dry-run
       - name: Run tests
         working-directory: backend
         run: python manage.py test
