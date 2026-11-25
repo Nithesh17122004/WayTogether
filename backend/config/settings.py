@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "apps.journeys.apps.JourneysConfig",
     "apps.bookings.apps.BookingsConfig",
     "apps.finance.apps.FinanceConfig",
+    "apps.trust.apps.TrustConfig",
     "apps.core",
 ]
 
@@ -131,6 +132,8 @@ REST_FRAMEWORK = {
         "booking_request": "10/hour",
         "booking_action": "30/hour",
         "finance_action": "10/hour",
+        "message_send": "30/hour",
+        "safety_action": "10/hour",
     },
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
