@@ -56,17 +56,21 @@ def issue_verification_code(user, channel):
     )
 
     if channel == VerificationCode.Channel.EMAIL:
-        send_mail(
-            subject="Verify your WayTogether email",
-            message=(
-                f"Your WayTogether verification code is {code}. "
-                f"It expires in {OTP_TTL_MINUTES} minutes. "
-                "If you did not request this code, you can ignore this email."
-            ),
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-            recipient_list=[user.email],
-            fail_silently=False,
-        )
+        try:
+            send_mail(
+                subject="Verify your WayTogether email",
+                message=(
+                    f"Your WayTogether verification code is {code}. "
+                    f"It expires in {OTP_TTL_MINUTES} minutes. "
+                    "If you did not request this code, you can ignore this email."
+                ),
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+        except Exception:
+            record.delete()
+            raise
     elif getattr(settings, "SMS_OTP_CONSOLE", False) and settings.DEBUG:
         # Local development only. Never expose OTP values through an API response.
         logger.warning("WayTogether development phone OTP for %s: %s", user.phone, code)
