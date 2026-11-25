@@ -70,3 +70,13 @@ Bookings, seat locking, payments, refunds, payouts, messaging and live tracking 
 - Driver cancellation of a journey closes its pending and confirmed bookings.
 - Search and journey details show confirmed and available seat counts.
 - Provisional expense shares are recalculated after confirmations/cancellations; they are not final prices and no money is collected.
+
+
+## Financial management (Phase 7)
+- Drivers can finalize the actual eligible expenses of a published journey after its departure.
+- Finalization freezes the cost allocation across the driver and confirmed passenger seats, then marks the journey completed.
+- Drivers can view their own expense settlement and cost share at `/dashboard/driver/finance`.
+- Passengers can view their own final contribution at `/dashboard/passenger/finance`.
+- The passenger finance page exposes only a fake sandbox payment simulator with success/failure outcomes.
+- Admin users can create a simulated sandbox refund through the finance API.
+- No payment-provider SDK, real card/UPI form, external payment call, live charge, refund, commission or driver payout is part of this phase.
