@@ -26,6 +26,7 @@ from .serializers import (
     JourneyReviewSerializer,
     NotificationSerializer,
     PublicSafetyReportSerializer,
+    SafetyReportInputSerializer,
 )
 from .services import mark_notification_read, notify, notify_booking_participants
 
@@ -226,9 +227,10 @@ class SafetyReportCreateView(APIView):
                 if not booking_match:
                     return Response({"detail": "You can report only a journey you participated in."}, status=404)
                 booking = booking_match
-            participants = {journey.driver_id}
-            if booking:
-                participants.add(booking.passenger_id)
+            participant_ids = set(
+                Booking.objects.filter(journey=journey).values_list("passenger_id", flat=True)
+            )
+            participants = {journey.driver_id, *participant_ids}
 
         reported_user = None
         if reported_user_id:
