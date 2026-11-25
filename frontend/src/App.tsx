@@ -21,9 +21,9 @@ import {
 type SearchMode = "passenger" | "driver";
 
 const sampleJourneys = [
-  { from: "Chennai", to: "Bengaluru", date: "Fri, 28 Nov", time: "7:30 AM", seats: 2, contribution: "₹420", driver: "Arun", initials: "AK", rating: "4.9", vehicle: "Sedan" },
-  { from: "Coimbatore", to: "Kochi", date: "Sat, 29 Nov", time: "9:00 AM", seats: 3, contribution: "₹280", driver: "Meera", initials: "MR", rating: "5.0", vehicle: "Hatchback" },
-  { from: "Hyderabad", to: "Vijayawada", date: "Sun, 30 Nov", time: "6:45 AM", seats: 1, contribution: "₹350", driver: "Rahul", initials: "RS", rating: "4.8", vehicle: "SUV" },
+  { from: "Chennai", to: "Bengaluru", date: "Sample date", time: "7:30 AM", seats: 2, contribution: "₹420", driver: "Arun", initials: "AK", rating: "4.9", vehicle: "Sedan" },
+  { from: "Coimbatore", to: "Kochi", date: "Sample date", time: "9:00 AM", seats: 3, contribution: "₹280", driver: "Meera", initials: "MR", rating: "5.0", vehicle: "Hatchback" },
+  { from: "Hyderabad", to: "Vijayawada", date: "Sample date", time: "6:45 AM", seats: 1, contribution: "₹350", driver: "Rahul", initials: "RS", rating: "4.8", vehicle: "SUV" },
 ];
 
 function Brand() {
@@ -179,7 +179,7 @@ function JourneyCard({ journey }: { journey: typeof sampleJourneys[number] }) {
         <div className="driver-mini"><span className="driver-avatar">{journey.initials}</span><span><strong>{journey.driver}</strong><small><BadgeCheck size={12} /> Example profile · {journey.rating}</small></span></div>
         <div className="journey-price"><strong>{journey.contribution}</strong><small>Expense contribution</small></div>
       </div>
-      <div className="journey-meta"><span><Users size={14} /> {journey.seats} seats</span><span><CarFront size={14} /> {journey.vehicle}</span><span><ShieldCheck size={14} /> Sample only</span></div>
+      <div className="journey-meta"><span><Users size={14} /> {journey.seats} seats</span><span><CarFront size={14} /> {journey.vehicle}</span><span><Clock3 size={14} /> {journey.time}</span></div>
     </article>
   );
 }
@@ -212,6 +212,17 @@ function App() {
 
         <section className="search-section">
           <div className="container"><SearchPanel /></div>
+        </section>
+
+        <section className="section journey-preview">
+          <div className="container">
+            <div className="section-heading section-heading-row">
+              <div><span className="eyebrow">A GLIMPSE OF THE EXPERIENCE</span><h2>Journeys, made more connected.</h2><p>These sample cards show how a shared journey could appear in the marketplace.</p></div>
+              <span className="preview-label">DESIGN PREVIEW · NOT LIVE LISTINGS</span>
+            </div>
+            <div className="journeys-grid">{sampleJourneys.map((journey) => <JourneyCard key={journey.from + journey.to} journey={journey} />)}</div>
+            <p className="journey-preview-note">Illustrative content only. Live journey discovery and availability will be connected in the marketplace phase.</p>
+          </div>
         </section>
 
         <section className="trust-strip" id="safety">
