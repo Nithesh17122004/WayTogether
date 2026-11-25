@@ -48,7 +48,7 @@ Set `VITE_API_BASE_URL` to the Django API base path. By default, the frontend ca
 - Email and phone codes must both be verified before login.
 - In local development, email OTP is printed by Django's console email backend and phone OTP is logged in the Django server console.
 - Production SMS delivery requires a provider integration.
-- JWTs are currently kept in memory; refreshing the page clears the session. A production-grade secure browser/session strategy and protected route enforcement remain launch prerequisites.
+- JWT access/refresh tokens are kept in JavaScript memory only; refreshing the page clears the session. Dashboard workspaces now verify the signed-in account and enforce the correct Passenger/Driver/Admin role before rendering. Sign out clears local tokens and asks the API to blacklist the refresh token. A production-grade HttpOnly/SameSite cookie or BFF session strategy remains a launch prerequisite; never persist refresh tokens in localStorage.
 
 ## Driver verification
 - Driver verification pages require a verified Driver account.
@@ -91,3 +91,11 @@ Bookings, seat locking, payments, refunds, payouts, messaging and live tracking 
 - Staff administrators can review reports at `/admin/safety`; internal notes are not returned to reporters.
 - Passenger and Driver users can submit one 1–5 review of the other participant after a confirmed journey reaches completed status at `/dashboard/{role}/reviews`.
 - In-app notifications only; email, SMS, push, live trip tracking and emergency dispatch are not part of this phase.
+
+
+## Security and production readiness (Phase 10)
+- The Django API requires secure production configuration and runs `check --deploy` in CI.
+- Use the API's `token/blacklist/` endpoint for refresh-token revocation on sign-out.
+- Configure the production API origin in `VITE_API_BASE_URL` at frontend build time. Never ship localhost API URLs in a production build.
+- Full page reload currently requires sign-in again because the session remains memory-only until a reviewed cookie/BFF session is introduced.
+- See `../docs/PHASE_10_TESTING_SECURITY_DEPLOYMENT.md` for Render settings, manual release checks and unresolved launch gates.
