@@ -19,7 +19,7 @@ WayTogether is a website-first private carpooling platform designed to connect p
 - Frontend: React, Vite, TypeScript and Tailwind CSS.
 - Backend: Python, Django and Django REST Framework.
 - Database: PostgreSQL in shared/production environments; SQLite for local backend development.
-- Maps: Leaflet and OpenStreetMap (integration planned).
+- Maps: Leaflet, configurable OpenStreetMap-derived tiles, location search and a configurable road-routing provider.
 - Testing: Pytest and Playwright; GitHub Actions CI is configured.
 
 ## Repository layout
@@ -60,7 +60,7 @@ python manage.py runserver
 
 Health endpoint: http://127.0.0.1:8000/api/v1/health/
 
-The website prototype currently uses illustrative route/journey content. Search does not yet query a live API, and authentication, publishing, bookings, payments and settlements are not implemented yet.
+The website now supports API-backed driver KYC, vehicle verification, journey drafts, verified-driver publishing, route/date/seat search and journey detail pages. Booking, payment, payout, messaging and live tracking are not implemented yet.
 
 ## Development phases
 
@@ -68,7 +68,7 @@ The website prototype currently uses illustrative route/journey content. Search 
 2. Premium UI/UX and frontend
 3. Authentication and user management
 4. Driver, vehicle and document verification
-5. Journey publishing and search
+5. Journey publishing and search — implemented in Phase 5
 6. Booking and journey management
 7. Payments and financial management (sandbox until approvals)
 8. Communication, safety and trust
@@ -80,6 +80,7 @@ See the `docs/` directory for full product requirements, architecture, roadmap a
 ## Core product safeguards
 
 - Drivers must independently plan journeys and attest that they would travel without passengers.
+- Passenger contributions are estimates of eligible journey expenses, not fares or driver income; final sharing is recalculated during booking.
 - Passenger contributions are intended for eligible journey-expense sharing, not driver profit.
 - Platform fees must be separately disclosed and used only after legal and tax review.
 - Live payments and payouts must not be enabled until the operating model, insurance, tax position and payment provider are approved.
