@@ -172,6 +172,15 @@ class BookingApproveView(APIView):
                         {"detail": "Only pending booking requests can be approved."},
                         status=status.HTTP_409_CONFLICT,
                     )
+                if (
+                    not booking.passenger.is_active
+                    or not booking.passenger.is_email_verified
+                    or not booking.passenger.is_phone_verified
+                ):
+                    return Response(
+                        {"detail": "The passenger account is no longer eligible for booking approval."},
+                        status=status.HTTP_409_CONFLICT,
+                    )
                 if journey_has_departed(journey):
                     return Response(
                         {"detail": "This journey has departed; the booking request cannot be approved."},
