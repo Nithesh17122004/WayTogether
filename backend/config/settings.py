@@ -150,7 +150,7 @@ SIMPLE_JWT = {
 }
 
 NOMINATIM_URL = os.getenv("NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
-OSRM_ROUTE_URL = os.getenv("OSRM_ROUTE_URL", "https://router.project-osrm.org/route/v1/driving")
+OSRM_ROUTE_URL = os.getenv("OSRM_ROUTE_URL", "")
 MAPS_USER_AGENT = os.getenv(
     "MAPS_USER_AGENT",
     "WayTogether/1.0 (configure a monitored contact URL before production)",
