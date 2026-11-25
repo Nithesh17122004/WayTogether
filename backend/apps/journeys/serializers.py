@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.utils import timezone
 from rest_framework import serializers
 
-from drivers.models import Vehicle
+from apps.drivers.models import Vehicle
 from .models import Journey, JourneyStop
 
 
@@ -11,7 +11,7 @@ class JourneyStopSerializer(serializers.ModelSerializer):
     class Meta:
         model = JourneyStop
         fields = ("id", "sequence", "location_name", "latitude", "longitude")
-        read_only_fields = ("id",)
+        read_only_fields = ("id", "sequence")
 
 
 class JourneySerializer(serializers.ModelSerializer):
