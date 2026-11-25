@@ -16,7 +16,7 @@ from .geo import haversine_km
 from .models import Journey
 from .permissions import IsVerifiedDriver
 from .serializers import JourneySerializer
-from .services import MapsProviderError, get_route_preview, search_locations
+from .services import MapsProviderError, MapsRateLimitError, get_route_preview, search_locations
 
 
 def _published_queryset():
@@ -45,13 +45,15 @@ class LocationSearchView(APIView):
             return Response({"results": []})
         try:
             results = search_locations(query)
+        except MapsRateLimitError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         except MapsProviderError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response({"results": results})
 
 
 class RoutePreviewView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, IsVerifiedDriver]
     throttle_scope = "route_preview"
 
     def get(self, request):
