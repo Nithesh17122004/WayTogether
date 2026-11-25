@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowRight, Bell, Check, CheckCheck, Clock3, MessageCircle,
   RefreshCw, ShieldAlert, ShieldCheck, Star, Trash2, UserRound,
@@ -25,7 +25,7 @@ function TrustEmpty({title,body,link}:{title:string;body:string;link?:string}) {
   return <div className="wt-market-empty"><ShieldCheck/><b>{title}</b><p>{body}</p>{link&&<Link to={link} className="wt-btn wt-btn-primary">Continue <ArrowRight size={14}/></Link>}</div>;
 }
 
-export function NotificationCenterContent() {
+export function NotificationCenterContent({role}:{role:WorkspaceRole}) {
   const [items,setItems]=useState<NotificationRecord[]>([]);
   const [unread,setUnread]=useState(0);
   const [loading,setLoading]=useState(true);
@@ -52,7 +52,7 @@ export function NotificationCenterContent() {
     finally{setBusyId(null);}
   };
   const destination=(item:NotificationRecord)=>{
-    if(item.booking_id)return "/dashboard/messages?booking="+item.booking_id;
+    if(item.booking_id)return role==="Passenger"?"/dashboard/passenger/messages?booking="+item.booking_id:"/dashboard/driver/messages?booking="+item.booking_id;
     if(item.journey_id)return "/journeys/"+item.journey_id;
     return "/dashboard/notifications";
   };
@@ -85,7 +85,7 @@ export function MessagesContent({role}:{role:WorkspaceRole}) {
     const request=role==="Passenger"?getMyBookings():getDriverBookingRequests();
     request.then(records=>{
       setBookings(records);
-      setSelectedId(current=>current&&records.some(item=>item.id===current)?current:(records[0]?.id??null));
+      setSelectedId(current=>current&&records.some(item=>item.id===current)?current:(requestedBooking&&records.some(item=>item.id===requestedBooking)?requestedBooking:(records[0]?.id??null)));
     }).catch(err=>setError(err instanceof Error?err.message:"Could not load booking conversations."))
       .finally(()=>setLoading(false));
   };
