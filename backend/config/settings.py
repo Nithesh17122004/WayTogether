@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "apps.accounts.apps.AccountsConfig",
+    "apps.drivers.apps.DriversConfig",
     "apps.core",
 ]
 
@@ -78,6 +79,12 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+# Verification documents must only be served through the authenticated download API.
+# Never expose MEDIA_ROOT as a public static/media directory in production.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_PERMISSIONS = 0o640
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o750
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
