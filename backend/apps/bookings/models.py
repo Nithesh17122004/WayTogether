@@ -4,7 +4,6 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
-from django.utils import timezone
 
 
 class Booking(models.Model):
@@ -70,11 +69,3 @@ class Booking(models.Model):
     def is_active(self):
         return self.status in (self.Status.PENDING, self.Status.CONFIRMED)
 
-    @property
-    def has_departed(self):
-        now = timezone.localtime()
-        departure = timezone.make_aware(
-            timezone.datetime.combine(self.journey.travel_date, self.journey.departure_time),
-            timezone.get_current_timezone(),
-        )
-        return now >= departure
