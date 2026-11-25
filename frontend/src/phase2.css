@@ -950,7 +950,7 @@ body { background:#f5f7f8 !important; color:#263b4b; }
 .wt-brand { color:#183449 !important; gap:10px; }
 .wt-brand-image { width:42px; height:42px; display:block; flex:0 0 auto; object-fit:contain; border-radius:11px; }
 .wt-brand-word { color:#183449; font-size:19px; font-weight:780; letter-spacing:-.65px; }
-.wt-brand-word span { color:#347b75; }
+.wt-brand > .wt-brand-word > span { color:#347b75 !important; background:none !important; }
 .wt-main-nav a,.wt-login-link { color:#526575 !important; }
 .wt-main-nav a:hover,.wt-login-link:hover { color:#183449 !important; }
 .wt-btn { border-radius:9px; font-weight:700; box-shadow:none !important; }
