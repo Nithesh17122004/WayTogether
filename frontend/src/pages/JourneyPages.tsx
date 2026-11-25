@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import LocationPicker from "../components/LocationPicker";
 import JourneyMap from "../components/JourneyMap";
+import { createBooking } from "../services/bookings";
 import {
   cancelJourney, createJourneyDraft, getJourney, getMyJourneys, getMyVehicles,
   previewRoute, publishJourney, searchJourneys,
@@ -46,7 +47,7 @@ function JourneyResultCard({journey}:{journey:JourneyRecord}) {
     <div className="wt-live-cities"><b>{matchedFrom}</b><ArrowRight size={15}/><b>{matchedTo}</b></div>
     {usesIntermediateSegment&&<div className="wt-live-stops">Matches an intermediate segment of the driver's planned route</div>}
     {journey.stops.length>0&&<div className="wt-live-stops"><MapPin size={12}/> Via {journey.stops.map(stop=>stop.location_name).join(" · ")}</div>}
-    <div className="wt-live-driver"><span className="wt-live-avatar">{journey.driver_name.split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase()}</span><span><b>{journey.driver_name}</b><small><ShieldCheck size={12}/> Approved driver · {journey.vehicle_details.make} {journey.vehicle_details.model}</small></span><span className="wt-live-seats"><Users size={13}/>{journey.seats_offered} seats</span></div>
+    <div className="wt-live-driver"><span className="wt-live-avatar">{journey.driver_name.split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase()}</span><span><b>{journey.driver_name}</b><small><ShieldCheck size={12}/> Approved driver · {journey.vehicle_details.make} {journey.vehicle_details.model}</small></span><span className="wt-live-seats"><Users size={13}/>{journey.available_seats} seats available</span></div>
     <div className="wt-live-card-bottom"><span><small>Estimated expense share per passenger*</small><b>{money(journey.estimated_contribution_per_passenger)}</b></span><Link to={"/journeys/"+journey.id} className="wt-btn wt-btn-primary">View journey <ArrowRight size={15}/></Link></div>
   </article>;
 }
@@ -274,11 +275,42 @@ export function JourneyDetailContent() {
   const [journey,setJourney]=useState<JourneyRecord|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
-  useEffect(()=>{
-    if(!id||!/^\d+$/.test(id)){setError("Journey not found.");setLoading(false);return;}
-    getJourney(Number(id)).then(setJourney).catch(err=>setError(err instanceof Error?err.message:"Journey could not be loaded."))
+  const [bookingError,setBookingError]=useState("");
+  const [bookingNotice,setBookingNotice]=useState("");
+  const [bookingBusy,setBookingBusy]=useState(false);
+  const [seatsRequested,setSeatsRequested]=useState("1");
+  const [requestMessage,setRequestMessage]=useState("");
+
+  const loadJourney=()=>{
+    if(!id||!/^\\d+$/.test(id)){setError("Journey not found.");setLoading(false);return;}
+    setLoading(true);
+    getJourney(Number(id)).then(data=>{
+      setJourney(data);
+      setSeatsRequested(current=>String(Math.max(1,Math.min(Number(current)||1,data.available_seats||1))));
+    }).catch(err=>setError(err instanceof Error?err.message:"Journey could not be loaded."))
       .finally(()=>setLoading(false));
-  },[id]);
+  };
+  useEffect(()=>{loadJourney();},[id]);
+
+  const submitBooking=async(event:FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    if(!journey)return;
+    if(journey.available_seats<=0){setBookingError("This journey has no remaining seats.");return;}
+    setBookingBusy(true);setBookingError("");setBookingNotice("");
+    try{
+      const result=await createBooking({
+        journey:journey.id,
+        seats_requested:Number(seatsRequested),
+        request_message:requestMessage.trim(),
+      });
+      setBookingNotice(result.detail);
+      setRequestMessage("");
+      loadJourney();
+    }catch(err){
+      setBookingError(err instanceof Error?err.message:"Your booking request could not be sent.");
+    }finally{setBookingBusy(false);}
+  };
+
   if(loading) return <main className="wt-page"><div className="wt-container wt-market-empty"><RefreshCw className="wt-spin"/>Loading journey details…</div></main>;
   if(error||!journey) return <main className="wt-page"><div className="wt-container wt-market-page"><PageNotice kind="error">{error||"Journey not found."}</PageNotice><Link to="/search" className="wt-btn wt-btn-primary">Back to search</Link></div></main>;
 
@@ -290,7 +322,7 @@ export function JourneyDetailContent() {
     <div className="wt-page-heading"><div><span className="wt-eyebrow">PUBLISHED JOURNEY</span><h1>{journey.origin_name} <span className="wt-gradient-arrow">→</span> {journey.destination_name}</h1><p>Shared journey published by {journey.driver_name}.</p></div><span className="wt-live-status"><i/> {journey.status}</span></div>
     <div className="wt-live-detail-grid">
       <section className="wt-panel wt-live-detail-main">
-        <div className="wt-detail-stats"><div><CalendarDays/><small>Travel date</small><b>{readableDate(journey.travel_date)}</b></div><div><Clock3/><small>Departure</small><b>{journey.departure_time.slice(0,5)}</b></div><div><Users/><small>Available seats</small><b>{journey.seats_offered}</b></div></div>
+        <div className="wt-detail-stats"><div><CalendarDays/><small>Travel date</small><b>{readableDate(journey.travel_date)}</b></div><div><Clock3/><small>Departure</small><b>{journey.departure_time.slice(0,5)}</b></div><div><Users/><small>Seats available</small><b>{journey.available_seats} / {journey.seats_offered}</b></div></div>
         <div className="wt-live-map-heading"><h2>Journey route</h2><span>{journey.route_distance_km?journey.route_distance_km+" km":"Distance unavailable"}</span></div>
         <JourneyMap origin={origin} destination={destination} geometry={journey.route_geometry} stops={stops} height={350}/>
         {stops.length>0&&<div className="wt-live-stop-list"><b>Intermediate stops</b>{stops.map((stop,index)=><span key={stop.label}><i>{index+1}</i>{stop.label}</span>)}</div>}
@@ -301,14 +333,24 @@ export function JourneyDetailContent() {
       <aside className="wt-panel wt-live-booking-panel">
         <span className="wt-eyebrow">ESTIMATED EXPENSE SHARE</span>
         <strong>{money(journey.estimated_contribution_per_passenger)}</strong>
-        <small>Estimated contribution per passenger*</small>
+        <small>Estimated per passenger if all offered seats are occupied</small>
         <div className="wt-summary-line"><span>Total eligible expenses (estimate)</span><b>{money(journey.estimated_total_expenses)}</b></div>
-        <div className="wt-summary-line"><span>Passenger seats offered</span><b>{journey.seats_offered}</b></div>
+        <div className="wt-summary-line"><span>Passenger seats confirmed</span><b>{journey.confirmed_seats}</b></div>
+        <div className="wt-summary-line"><span>Passenger seats available</span><b>{journey.available_seats}</b></div>
         <div className="wt-summary-line"><span>Estimated distance</span><b>{journey.route_distance_km?journey.route_distance_km+" km":"Not available"}</b></div>
         <div className="wt-summary-line"><span>Estimated duration</span><b>{displayDuration(journey.route_duration_minutes)}</b></div>
         <div className="wt-live-driver-profile"><span className="wt-live-avatar">{journey.driver_name.split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase()}</span><span><b>{journey.driver_name}</b><small><BadgeCheck size={12}/> Verified driver · {journey.vehicle_details.make} {journey.vehicle_details.model}</small></span></div>
-        <button className="wt-btn wt-btn-primary wt-full" type="button" disabled>Booking opens in Phase 6</button>
-        <p className="wt-market-footnote">*Estimated share assumes all listed passenger seats are occupied. Final cost allocation is calculated in the booking phase. No money is collected on this page.</p>
+        {bookingError&&<PageNotice kind="error">{bookingError}</PageNotice>}
+        {bookingNotice&&<PageNotice kind="success">{bookingNotice}</PageNotice>}
+        {journey.available_seats>0?<form className="wt-booking-request-form" onSubmit={submitBooking}>
+          <h3>Request a seat</h3>
+          <label className="wt-field"><span>Number of seats</span><select value={seatsRequested} onChange={e=>setSeatsRequested(e.target.value)}>{Array.from({length:journey.available_seats},(_,i)=>i+1).map(n=><option key={n} value={n}>{n} {n===1?"seat":"seats"}</option>)}</select></label>
+          <label className="wt-field"><span>Message to driver (optional)</span><textarea rows={3} maxLength={500} value={requestMessage} onChange={e=>setRequestMessage(e.target.value)} placeholder="Add a brief pickup or travel note."/></label>
+          <button className="wt-btn wt-btn-primary wt-full" type="submit" disabled={bookingBusy}>{bookingBusy?"Sending request…":"Request "+seatsRequested+" seat(s)"} <ArrowRight size={15}/></button>
+          <p className="wt-booking-request-note">Your request is pending until the driver approves it. Seats are not reserved and no money is collected at this point.</p>
+          <Link to="/dashboard/passenger/bookings" className="wt-text-link">View my bookings <ArrowRight size={13}/></Link>
+        </form>:<div className="wt-market-notice info">All passenger seats are currently confirmed. Check again later for availability.</div>}
+        <p className="wt-market-footnote">*The displayed full-occupancy estimate is provisional. Confirmed booking contributions are recalculated as seat occupancy changes. No payment is taken in Phase 6.</p>
       </aside>
     </div>
   </div></main>;

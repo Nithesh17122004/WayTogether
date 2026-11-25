@@ -387,3 +387,332 @@ class JourneyApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["distance_km"], 350.2)
         route_mock.assert_called_once()
+
+
+
+from apps.bookings.models import Booking
+
+
+class BookingApiTests(APITestCase):
+    def create_driver(self, email="driver@example.com", phone="+919876543210"):
+        user = User.objects.create_user(
+            email=email,
+            phone=phone,
+            password="A-Strong-Unique-Password-928!",
+            first_name="Verified Driver",
+            role=User.Role.DRIVER,
+            is_email_verified=True,
+            is_phone_verified=True,
+        )
+        DriverProfile.objects.create(
+            user=user,
+            verification_status=DriverProfile.VerificationStatus.APPROVED,
+        )
+        return user
+
+    def create_passenger(self, email="passenger@example.com", phone="+919876543220"):
+        return User.objects.create_user(
+            email=email,
+            phone=phone,
+            password="A-Strong-Unique-Password-928!",
+            first_name="Test Passenger",
+            role=User.Role.PASSENGER,
+            is_email_verified=True,
+            is_phone_verified=True,
+        )
+
+    def create_approved_vehicle(self, driver, seats=3):
+        return Vehicle.objects.create(
+            owner=driver,
+            registration_number="TN09AB1234" if driver.email == "driver@example.com" else "TN10CD5678",
+            make="Honda",
+            model="City",
+            manufacture_year=2022,
+            vehicle_type=Vehicle.VehicleType.SEDAN,
+            passenger_seats=seats,
+            private_use_attested=True,
+            verification_status=Vehicle.VerificationStatus.APPROVED,
+        )
+
+    def create_approved_documents(self, driver, vehicle):
+        expiry = timezone.localdate() + timedelta(days=365)
+        base = {
+            "owner": driver,
+            "file": "private/test-driver-document.pdf",
+            "original_file_name": "test-driver-document.pdf",
+            "content_type": "application/pdf",
+            "file_size": 128,
+            "review_status": VerificationDocument.ReviewStatus.APPROVED,
+            "reviewed_at": timezone.now(),
+            "is_current": True,
+        }
+        VerificationDocument.objects.create(
+            document_type=VerificationDocument.DocumentType.DRIVER_LICENSE,
+            **base,
+        )
+        for document_type in (
+            VerificationDocument.DocumentType.VEHICLE_REGISTRATION,
+            VerificationDocument.DocumentType.INSURANCE,
+            VerificationDocument.DocumentType.VEHICLE_PHOTO,
+        ):
+            VerificationDocument.objects.create(
+                document_type=document_type,
+                vehicle=vehicle,
+                expiry_date=expiry if document_type == VerificationDocument.DocumentType.INSURANCE else None,
+                **base,
+            )
+
+    def create_journey(self, driver, vehicle, seats=2):
+        self.create_approved_documents(driver, vehicle)
+        travel_date = timezone.localdate() + timedelta(days=4)
+        journey = Journey.objects.create(
+            driver=driver,
+            vehicle=vehicle,
+            origin_name="Chennai, Tamil Nadu",
+            origin_latitude=Decimal("13.0827000"),
+            origin_longitude=Decimal("80.2707000"),
+            destination_name="Bengaluru, Karnataka",
+            destination_latitude=Decimal("12.9716000"),
+            destination_longitude=Decimal("77.5946000"),
+            travel_date=travel_date,
+            departure_time="08:00",
+            seats_offered=seats,
+            fuel_expense=Decimal("1200.00"),
+            toll_expense=Decimal("250.00"),
+            parking_expense=Decimal("0.00"),
+            other_expense=Decimal("50.00"),
+            independently_planned=True,
+            expenses_only=True,
+            status=Journey.Status.PUBLISHED,
+            published_at=timezone.now(),
+        )
+        return journey
+
+    def create_request(self, passenger, journey, seats=1):
+        self.client.force_authenticate(passenger)
+        return self.client.post(
+            "/api/v1/bookings/",
+            {
+                "journey": journey.pk,
+                "seats_requested": seats,
+                "request_message": "I can meet at the agreed pickup point.",
+            },
+            format="json",
+        )
+
+    def approve(self, driver, booking_id):
+        self.client.force_authenticate(driver)
+        return self.client.post(
+            f"/api/v1/bookings/{booking_id}/approve/",
+            {"driver_response": "Confirmed. See you at the pickup point."},
+            format="json",
+        )
+
+    def test_passenger_can_request_seats_but_request_does_not_reserve_them(self):
+        driver = self.create_driver()
+        vehicle = self.create_approved_vehicle(driver, seats=3)
+        journey = self.create_journey(driver, vehicle, seats=2)
+        passenger = self.create_passenger()
+
+        response = self.create_request(passenger, journey, seats=1)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        booking = Booking.objects.get(pk=response.data["booking"]["id"])
+        self.assertEqual(booking.status, Booking.Status.PENDING)
+
+        journey_response = self.client.get(f"/api/v1/journeys/{journey.pk}/")
+        self.assertEqual(journey_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(journey_response.data["confirmed_seats"], 0)
+        self.assertEqual(journey_response.data["available_seats"], 2)
+
+    def test_passenger_cannot_book_own_journey(self):
+        driver = self.create_driver()
+        vehicle = self.create_approved_vehicle(driver)
+        journey = self.create_journey(driver, vehicle)
+        self.client.force_authenticate(driver)
+        response = self.client.post(
+            "/api/v1/bookings/",
+            {"journey": journey.pk, "seats_requested": 1},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_passenger_can_have_only_one_active_booking_for_a_journey(self):
+        driver = self.create_driver()
+        vehicle = self.create_approved_vehicle(driver)
+        journey = self.create_journey(driver, vehicle)
+        passenger = self.create_passenger()
+
+        first = self.create_request(passenger, journey, 1)
+        second = self.create_request(passenger, journey, 1)
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(Booking.objects.filter(journey=journey, passenger=passenger).count(), 1)
+
+    def test_only_journey_driver_can_approve_booking(self):
+        driver = self.create_driver()
+        other_driver = self.create_driver("other-driver@example.com", "+919876543212")
+        vehicle = self.create_approved_vehicle(driver)
+        journey = self.create_journey(driver, vehicle)
+        passenger = self.create_passenger()
+        booking_response = self.create_request(passenger, journey)
+        booking_id = booking_response.data["booking"]["id"]
+
+        self.client.force_authenticate(other_driver)
+        response = self.client.post(f"/api/v1/bookings/{booking_id}/approve/", {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_driver_approval_reserves_seats_and_calculates_provisional_share(self):
+        driver = self.create_driver()
+        vehicle = self.create_approved_vehicle(driver)
+        journey = self.create_journey(driver, vehicle, seats=2)
+        passenger = self.create_passenger()
+        request = self.create_request(passenger, journey, seats=1)
+        booking_id = request.data["booking"]["id"]
+
+        response = self.approve(driver, booking_id)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        booking = Booking.objects.get(pk=booking_id)
+        self.assertEqual(booking.status, Booking.Status.CONFIRMED)
+        self.assertEqual(booking.estimated_contribution_per_passenger, Decimal("750.00"))
+        self.assertEqual(booking.estimated_contribution_total, Decimal("750.00"))
+
+        journey_response = self.client.get(f"/api/v1/journeys/{journey.pk}/")
+        self.assertEqual(journey_response.data["confirmed_seats"], 1)
+        self.assertEqual(journey_response.data["available_seats"], 1)
+
+    def test_pending_requests_do_not_lock_seats_but_approvals_cannot_oversell(self):
+        driver = self.create_driver()
+        vehicle = self.create_approved_vehicle(driver, seats=3)
+        journey = self.create_journey(driver, vehicle, seats=2)
+        passenger_one = self.create_passenger()
+        passenger_two = self.create_passenger("passenger2@example.com", "+919876543221")
+
+        first = self.create_request(passenger_one, journey, seats=2)
+        second = self.create_request(passenger_two, journey, seats=2)
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+
+        first_approval = self.approve(driver, first.data["booking"]["id"])
+        second_approval = self.approve(driver, second.data["booking"]["id"])
+        self.assertEqual(first_approval.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_approval.status_code, status.HTTP_409_CONFLICT)
+
+        journey_response = self.client.get(f"/api/v1/journeys/{journey.pk}/")
+        self.assertEqual(journey_response.data["confirmed_seats"], 2)
+        self.assertEqual(journey_response.data["available_seats"], 0)
+
+    def test_driver_can_decline_pending_request_with_response(self):
+        driver = self.create_driver()
+        vehicle = self.create_approved_vehicle(driver)
+        journey = self.create_journey(driver, vehicle)
+        passenger = self.create_passenger()
+        request = self.create_request(passenger, journey)
+
+        self.client.force_authenticate(driver)
+        response = self.client.post(
+            f"/api/v1/bookings/{request.data['booking']['id']}/decline/",
+            {"driver_response": "The pickup location is not suitable."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["booking"]["status"], Booking.Status.DECLINED)
+        self.assertEqual(response.data["booking"]["driver_response"], "The pickup location is not suitable.")
+
+    def test_passenger_can_cancel_confirmed_booking_and_release_seats(self):
+        driver = self.create_driver()
+        vehicle = self.create_approved_vehicle(driver)
+        journey = self.create_journey(driver, vehicle, seats=2)
+        passenger = self.create_passenger()
+        request = self.create_request(passenger, journey)
+        self.approve(driver, request.data["booking"]["id"])
+
+        self.client.force_authenticate(passenger)
+        response = self.client.post(f"/api/v1/bookings/{request.data['booking']['id']}/cancel/", {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["booking"]["status"], Booking.Status.CANCELLED)
+
+        journey_response = self.client.get(f"/api/v1/journeys/{journey.pk}/")
+        self.assertEqual(journey_response.data["confirmed_seats"], 0)
+        self.assertEqual(journey_response.data["available_seats"], 2)
+
+    def test_journey_driver_cancellation_cancels_pending_and_confirmed_bookings(self):
+        driver = self.create_driver()
+        vehicle = self.create_approved_vehicle(driver)
+        journey = self.create_journey(driver, vehicle)
+        passenger_one = self.create_passenger()
+        passenger_two = self.create_passenger("passenger2@example.com", "+919876543221")
+        first = self.create_request(passenger_one, journey)
+        second = self.create_request(passenger_two, journey)
+        self.approve(driver, first.data["booking"]["id"])
+
+        self.client.force_authenticate(driver)
+        response = self.client.post(f"/api/v1/journeys/{journey.pk}/cancel/", {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            Booking.objects.filter(
+                journey=journey,
+                status__in=(Booking.Status.PENDING, Booking.Status.CONFIRMED),
+            ).count(),
+            0,
+        )
+        self.assertEqual(Booking.objects.get(pk=first.data["booking"]["id"]).status, Booking.Status.CANCELLED)
+        self.assertEqual(Booking.objects.get(pk=second.data["booking"]["id"]).status, Booking.Status.CANCELLED)
+
+    def test_passenger_cannot_see_another_passengers_booking(self):
+        driver = self.create_driver()
+        vehicle = self.create_approved_vehicle(driver)
+        journey = self.create_journey(driver, vehicle)
+        passenger_one = self.create_passenger()
+        passenger_two = self.create_passenger("passenger2@example.com", "+919876543221")
+        request = self.create_request(passenger_one, journey)
+        booking_id = request.data["booking"]["id"]
+
+        self.client.force_authenticate(passenger_two)
+        response = self.client.get(f"/api/v1/bookings/{booking_id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_driver_request_queue_contains_only_the_drivers_journeys(self):
+        driver = self.create_driver()
+        other_driver = self.create_driver("other-driver@example.com", "+919876543212")
+        vehicle = self.create_approved_vehicle(driver)
+        other_vehicle = self.create_approved_vehicle(other_driver)
+        journey = self.create_journey(driver, vehicle)
+        other_journey = self.create_journey(other_driver, other_vehicle)
+        passenger = self.create_passenger()
+        other_passenger = self.create_passenger("passenger2@example.com", "+919876543221")
+        self.create_request(passenger, journey)
+        self.create_request(other_passenger, other_journey)
+
+        self.client.force_authenticate(driver)
+        response = self.client.get("/api/v1/bookings/driver/requests/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["journey_id"], journey.pk)
+
+    def test_cancelled_or_departed_journey_rejects_new_booking_requests(self):
+        driver = self.create_driver()
+        vehicle = self.create_approved_vehicle(driver)
+        journey = self.create_journey(driver, vehicle)
+        journey.status = Journey.Status.CANCELLED
+        journey.save(update_fields=["status"])
+        passenger = self.create_passenger()
+        response = self.create_request(passenger, journey)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_unverified_passenger_cannot_create_booking(self):
+        driver = self.create_driver()
+        vehicle = self.create_approved_vehicle(driver)
+        journey = self.create_journey(driver, vehicle)
+        passenger = User.objects.create_user(
+            email="unverified-passenger@example.com",
+            phone="+919876543222",
+            password="A-Strong-Unique-Password-928!",
+            role=User.Role.PASSENGER,
+        )
+        self.client.force_authenticate(passenger)
+        response = self.client.post(
+            "/api/v1/bookings/",
+            {"journey": journey.pk, "seats_requested": 1},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

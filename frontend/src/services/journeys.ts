@@ -39,6 +39,8 @@ export type JourneyRecord = {
   travel_date: string;
   departure_time: string;
   seats_offered: number;
+  confirmed_seats: number;
+  available_seats: number;
   fuel_expense: string;
   toll_expense: string;
   parking_expense: string;

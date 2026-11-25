@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, status
@@ -10,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.drivers.models import DriverProfile, Vehicle
+from apps.bookings.models import Booking
 from apps.drivers.services import recompute_driver_status, recompute_vehicle_status
 from .geo import haversine_km
 from .models import Journey
@@ -66,7 +68,10 @@ def _published_queryset():
             vehicle__verification_status=Vehicle.VerificationStatus.APPROVED,
         )
         .select_related("driver", "vehicle", "driver__driver_profile")
-        .prefetch_related("stops")
+        .prefetch_related(
+            "stops",
+            Prefetch("bookings", queryset=Booking.objects.filter(status=Booking.Status.CONFIRMED), to_attr="_confirmed_bookings"),
+        )
     )
 
 
@@ -124,7 +129,10 @@ class JourneyListCreateView(APIView):
         if request.query_params.get("mine") == "true":
             if not request.user.is_authenticated:
                 return Response({"detail": "Authentication is required."}, status=401)
-            queryset = Journey.objects.filter(driver=request.user).select_related("vehicle").prefetch_related("stops")
+            queryset = Journey.objects.filter(driver=request.user).select_related("vehicle").prefetch_related(
+                "stops",
+                Prefetch("bookings", queryset=Booking.objects.filter(status=Booking.Status.CONFIRMED), to_attr="_confirmed_bookings"),
+            )
             return Response(JourneySerializer(queryset, many=True, context={"request": request}).data)
 
         try:
@@ -150,11 +158,15 @@ class JourneyListCreateView(APIView):
         if not 1 <= seats <= 8 or not 1 <= radius <= 100:
             return Response({"detail": "Seats must be 1–8 and search radius 1–100 km."}, status=400)
 
-        queryset = _published_queryset().filter(travel_date=travel_date, seats_offered__gte=seats)
+        queryset = _published_queryset().filter(travel_date=travel_date)
         if travel_date == timezone.localdate():
             queryset = queryset.filter(departure_time__gt=timezone.localtime().time().replace(tzinfo=None))
         matches = []
         for journey in queryset[:1000]:
+            confirmed_seats = sum(item.seats_requested for item in journey._confirmed_bookings)
+            journey._confirmed_seats = confirmed_seats
+            if journey.seats_offered - confirmed_seats < seats:
+                continue
             match = _best_matching_segment(
                 journey, origin_lat, origin_lon, destination_lat, destination_lon, radius
             )
@@ -192,7 +204,10 @@ class MyJourneyListView(generics.ListAPIView):
         return (
             Journey.objects.filter(driver=self.request.user)
             .select_related("vehicle")
-            .prefetch_related("stops")
+            .prefetch_related(
+                "stops",
+                Prefetch("bookings", queryset=Booking.objects.filter(status=Booking.Status.CONFIRMED), to_attr="_confirmed_bookings"),
+            )
         )
 
 
@@ -202,7 +217,10 @@ class JourneyDetailView(APIView):
     def get(self, request, pk):
         journey = get_object_or_404(
             Journey.objects.select_related("driver", "vehicle", "driver__driver_profile")
-            .prefetch_related("stops"),
+            .prefetch_related(
+                "stops",
+                Prefetch("bookings", queryset=Booking.objects.filter(status=Booking.Status.CONFIRMED), to_attr="_confirmed_bookings"),
+            ),
             pk=pk,
         )
         if journey.status == Journey.Status.PUBLISHED:
@@ -288,9 +306,29 @@ class JourneyCancelView(APIView):
     permission_classes = [IsAuthenticated, IsVerifiedDriver]
 
     def post(self, request, pk):
-        journey = get_object_or_404(Journey, pk=pk, driver=request.user)
-        if journey.status not in (Journey.Status.DRAFT, Journey.Status.PUBLISHED):
-            return Response({"detail": "This journey can no longer be cancelled."}, status=409)
-        journey.status = Journey.Status.CANCELLED
-        journey.save(update_fields=["status", "updated_at"])
-        return Response({"detail": "Journey cancelled.", "status": journey.status})
+        with transaction.atomic():
+            journey = get_object_or_404(
+                Journey.objects.select_for_update(),
+                pk=pk,
+                driver=request.user,
+            )
+            if journey.status not in (Journey.Status.DRAFT, Journey.Status.PUBLISHED):
+                return Response({"detail": "This journey can no longer be cancelled."}, status=409)
+
+            now = timezone.now()
+            Booking.objects.filter(
+                journey=journey,
+                status__in=(Booking.Status.PENDING, Booking.Status.CONFIRMED),
+            ).update(
+                status=Booking.Status.CANCELLED,
+                cancelled_at=now,
+                cancelled_by=request.user,
+                updated_at=now,
+            )
+            journey.status = Journey.Status.CANCELLED
+            journey.save(update_fields=["status", "updated_at"])
+
+        return Response({
+            "detail": "Journey cancelled. All pending requests and confirmed bookings have been cancelled.",
+            "status": journey.status,
+        })
