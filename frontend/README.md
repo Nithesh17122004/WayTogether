@@ -17,4 +17,14 @@ npm run build
 npm run preview
 ```
 
-The first screen is a frontend prototype. Journey cards are illustrative and search does not yet connect to a live API. Authentication, publishing, booking and payment flows will be implemented in their respective phases.
+## Available design-preview routes
+- `/` — Public homepage
+- `/search` — Journey search and sample result cards
+- `/journeys/:id` — Journey details preview
+- `/publish` — Driver journey draft form
+- `/login` and `/register` — Authentication screens
+- `/dashboard/passenger` — Passenger dashboard preview
+- `/dashboard/driver` — Driver dashboard preview
+- `/admin` — Admin dashboard preview
+
+The Phase 2 website is a navigable, responsive UI prototype. Sample journeys, profiles, ratings and dashboard metrics are illustrative. Search does not query a live API. Authentication, verification, publishing, bookings, messages and admin actions are not connected to the backend yet. No payments are collected or settled. See `docs/PHASE_2_UI_MAP.md` for scope and limitations.
