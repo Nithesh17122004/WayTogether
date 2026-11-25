@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "apps.accounts.apps.AccountsConfig",
     "apps.drivers.apps.DriversConfig",
+    "apps.journeys.apps.JourneysConfig",
     "apps.core",
 ]
 
@@ -123,6 +124,8 @@ REST_FRAMEWORK = {
         "register": "5/hour",
         "login": "10/minute",
         "otp": "5/hour",
+        "map_search": "30/minute",
+        "route_preview": "30/minute",
     },
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
@@ -145,3 +148,10 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": False,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
+NOMINATIM_URL = os.getenv("NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
+OSRM_ROUTE_URL = os.getenv("OSRM_ROUTE_URL", "https://router.project-osrm.org/route/v1/driving")
+MAPS_USER_AGENT = os.getenv(
+    "MAPS_USER_AGENT",
+    "WayTogether/1.0 (configure a monitored contact URL before production)",
+)
