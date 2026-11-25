@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { CircleMarker, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 import type { LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -14,9 +14,8 @@ type Props = {
 
 function FitJourney({ points }: { points: LatLngTuple[] }) {
   const map = useMap();
-  useMemo(() => {
+  useEffect(() => {
     if (points.length) map.fitBounds(points, { padding: [28, 28], maxZoom: 10 });
-    return undefined;
   }, [map, points]);
   return null;
 }
@@ -45,13 +44,11 @@ export default function JourneyMap({
     <MapContainer center={center} zoom={6} scrollWheelZoom={false} style={{height:"100%",width:"100%"}}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
-        url={import.meta.env.VITE_OSM_TILE_URL || "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"}
+        url={import.meta.env.VITE_OSM_TILE_URL || "https://tile.openstreetmap.org/{z}/{x}/{y}.png"}
       />
       <FitJourney points={positions.length ? positions : points}/>
       {positions.length > 1 && <Polyline positions={positions} pathOptions={{color:"#826bff",weight:5,opacity:.9}}/>}
-      <CircleMarker center={points[0]} radius={8} pathOptions={{color:"#ffffff",weight:2,fillColor:"#a43dff",fillOpacity:1}}>
-        <></>
-      </CircleMarker>
+      <CircleMarker center={points[0]} radius={8} pathOptions={{color:"#ffffff",weight:2,fillColor:"#a43dff",fillOpacity:1}}/>
       {stops.map((stop,index)=><CircleMarker key={stop.label+index} center={[stop.latitude,stop.longitude]} radius={6} pathOptions={{color:"#fff",weight:2,fillColor:"#687dff",fillOpacity:1}}/>)}
       <CircleMarker center={points[points.length-1]} radius={8} pathOptions={{color:"#ffffff",weight:2,fillColor:"#18b9d9",fillOpacity:1}}/>
     </MapContainer>
