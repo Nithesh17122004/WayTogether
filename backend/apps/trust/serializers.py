@@ -87,3 +87,35 @@ class JourneyReviewSerializer(serializers.ModelSerializer):
         model = JourneyReview
         fields = ("id", "booking_id", "reviewer_name", "reviewee_name", "rating", "comment", "created_at")
         read_only_fields = fields
+
+class PublicSafetyReportSerializer(serializers.ModelSerializer):
+    category_display = serializers.CharField(source="get_category_display", read_only=True)
+
+    class Meta:
+        model = SafetyReport
+        fields = (
+            "id", "booking_id", "journey_id", "category", "category_display",
+            "priority", "description", "status", "created_at", "updated_at", "resolved_at",
+        )
+        read_only_fields = fields
+
+
+class AdminSafetyReportSerializer(serializers.ModelSerializer):
+    reporter_name = serializers.CharField(source="reporter.display_name", read_only=True)
+    reporter_email = serializers.EmailField(source="reporter.email", read_only=True)
+    reported_user_name = serializers.CharField(source="reported_user.display_name", read_only=True, allow_null=True)
+    category_display = serializers.CharField(source="get_category_display", read_only=True)
+
+    class Meta:
+        model = SafetyReport
+        fields = (
+            "id", "reporter_name", "reporter_email", "reported_user_name",
+            "booking_id", "journey_id", "category", "category_display",
+            "priority", "description", "status", "admin_note",
+            "created_at", "updated_at", "resolved_at",
+        )
+        read_only_fields = (
+            "id", "reporter_name", "reporter_email", "reported_user_name",
+            "booking_id", "journey_id", "category", "category_display",
+            "priority", "description", "created_at", "updated_at",
+        )
