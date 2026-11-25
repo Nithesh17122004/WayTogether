@@ -13,6 +13,8 @@ from rest_framework.views import APIView
 from apps.drivers.models import DriverProfile, Vehicle
 from apps.drivers.services import recompute_driver_status, recompute_vehicle_status
 from apps.journeys.models import Journey
+from apps.trust.models import Notification
+from apps.trust.services import notify_booking_participants
 from .models import Booking
 from .permissions import IsVerifiedDriver, IsVerifiedPassenger
 from .serializers import BookingRequestSerializer, BookingSerializer
@@ -102,6 +104,16 @@ class PassengerBookingCreateView(APIView):
                     passenger=request.user,
                     seats_requested=seats_requested,
                     request_message=request_message,
+                )
+                from apps.trust.services import notify
+                notify(
+                    recipient=journey.driver,
+                    actor=request.user,
+                    event_type=Notification.EventType.BOOKING_REQUEST,
+                    title="New passenger booking request",
+                    body=f"{request.user.display_name} requested {seats_requested} seat(s) on your journey.",
+                    booking=booking,
+                    journey=journey,
                 )
         except IntegrityError:
             return Response(
@@ -220,6 +232,13 @@ class BookingApproveView(APIView):
                 booking.save(update_fields=["status", "driver_response", "responded_at", "updated_at"])
                 refresh_contribution_estimates(journey)
                 booking.refresh_from_db()
+                notify_booking_participants(
+                    booking=booking,
+                    event_type=Notification.EventType.BOOKING_CONFIRMED,
+                    title="Booking confirmed",
+                    body="The driver approved your seat request. Your seats are now reserved.",
+                    actor=request.user,
+                )
         except IntegrityError:
             return Response(
                 {"detail": "The booking could not be confirmed because seat availability changed. Refresh and try again."},
@@ -252,6 +271,13 @@ class BookingDeclineView(APIView):
             booking.driver_response = response_note
             booking.responded_at = timezone.now()
             booking.save(update_fields=["status", "driver_response", "responded_at", "updated_at"])
+            notify_booking_participants(
+                booking=booking,
+                event_type=Notification.EventType.BOOKING_DECLINED,
+                title="Booking request declined",
+                body="The driver declined your booking request.",
+                actor=request.user,
+            )
 
         return Response({"detail": "Booking request declined.", "booking": _read_booking(booking, request)})
 
@@ -288,6 +314,13 @@ class BookingCancelView(APIView):
             booking.cancelled_at = timezone.now()
             booking.cancelled_by = request.user
             booking.save(update_fields=["status", "cancelled_at", "cancelled_by", "updated_at"])
+            notify_booking_participants(
+                booking=booking,
+                event_type=Notification.EventType.BOOKING_CANCELLED,
+                title="Booking cancelled",
+                body="A participant cancelled this booking. Any reserved seats have been released.",
+                actor=request.user,
+            )
             if was_confirmed:
                 refresh_contribution_estimates(journey)
 

@@ -9,6 +9,7 @@ export type BookingRecord = {
   journey_destination: string;
   travel_date: string;
   departure_time: string;
+  journey_status: "draft"|"published"|"cancelled"|"completed";
   driver_name: string;
   passenger_name: string;
   vehicle_name: string;

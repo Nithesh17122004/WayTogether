@@ -12,6 +12,8 @@ from rest_framework.views import APIView
 
 from apps.drivers.models import DriverProfile, Vehicle
 from apps.bookings.models import Booking
+from apps.trust.models import Notification
+from apps.trust.services import notify
 from apps.drivers.services import recompute_driver_status, recompute_vehicle_status
 from .geo import haversine_km
 from .models import Journey
@@ -316,15 +318,32 @@ class JourneyCancelView(APIView):
                 return Response({"detail": "This journey can no longer be cancelled."}, status=409)
 
             now = timezone.now()
+            affected_bookings = list(
+                Booking.objects.select_for_update()
+                .filter(
+                    journey=journey,
+                    status__in=(Booking.Status.PENDING, Booking.Status.CONFIRMED),
+                )
+                .select_related("passenger")
+            )
             Booking.objects.filter(
-                journey=journey,
-                status__in=(Booking.Status.PENDING, Booking.Status.CONFIRMED),
+                pk__in=[item.pk for item in affected_bookings],
             ).update(
                 status=Booking.Status.CANCELLED,
                 cancelled_at=now,
                 cancelled_by=request.user,
                 updated_at=now,
             )
+            for booking in affected_bookings:
+                notify(
+                    recipient=booking.passenger,
+                    actor=request.user,
+                    event_type=Notification.EventType.JOURNEY_CANCELLED,
+                    title="Journey cancelled",
+                    body="The driver cancelled this journey. Your booking is now closed.",
+                    booking=booking,
+                    journey=journey,
+                )
             journey.status = Journey.Status.CANCELLED
             journey.save(update_fields=["status", "updated_at"])
 

@@ -80,3 +80,14 @@ Bookings, seat locking, payments, refunds, payouts, messaging and live tracking 
 - The passenger finance page exposes only a fake sandbox payment simulator with success/failure outcomes.
 - Admin users can create a simulated sandbox refund through the finance API.
 - No payment-provider SDK, real card/UPI form, external payment call, live charge, refund, commission or driver payout is part of this phase.
+
+
+## Communication, safety and trust (Phase 8)
+- Passenger and Driver workspaces include private booking message threads at their respective `/dashboard/{role}/messages` routes.
+- Threads are visible only to the passenger and driver attached to that booking. Messaging closes at scheduled departure or when the booking/journey becomes inactive.
+- In-app activity inboxes are available at `/dashboard/{role}/notifications`.
+- Safety centre routes let an account owner save up to three private emergency contacts and submit a report about a booking.
+- Emergency contacts are not automatically shared with drivers/passengers and no contact is messaged or called by the platform.
+- Staff administrators can review reports at `/admin/safety`; internal notes are not returned to reporters.
+- Passenger and Driver users can submit one 1–5 review of the other participant after a confirmed journey reaches completed status at `/dashboard/{role}/reviews`.
+- In-app notifications only; email, SMS, push, live trip tracking and emergency dispatch are not part of this phase.
