@@ -59,6 +59,8 @@ export type JourneyRecord = {
   updated_at: string;
   origin_match_distance_km?: number | null;
   destination_match_distance_km?: number | null;
+  matched_origin_name?: string | null;
+  matched_destination_name?: string | null;
 };
 
 export type JourneySearchParams = {
