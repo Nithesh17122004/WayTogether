@@ -8,7 +8,7 @@ import { AdminBookingsContent, AdminExpenseLedgerContent, AdminJourneysContent, 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownUp, ArrowRight, ArrowUpRight, BadgeCheck, Bell, CalendarDays,
-  CarFront, Check, ChevronRight, CircleHelp, Compass, FileCheck2,
+  CarFront, Check, CircleHelp, Compass, FileCheck2,
   LayoutDashboard, LogOut, MapPin, Menu, MessageCircle, Plus, Search,
   Settings, ShieldCheck, Sparkles, Star, Users, Wallet, X,
 } from "lucide-react";
