@@ -152,6 +152,20 @@ class FinanceApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(ExpenseSettlement.objects.filter(journey=future_journey).exists())
 
+    def test_pending_requests_are_closed_when_expenses_are_finalized(self):
+        pending = Booking.objects.create(
+            journey=self.journey,
+            passenger=self.passenger_one,
+            seats_requested=1,
+            status=Booking.Status.PENDING,
+        )
+        self.create_booking(self.passenger_two)
+        response = self.submit_settlement(actual_fuel_expense="500.00")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        pending.refresh_from_db()
+        self.assertEqual(pending.status, Booking.Status.CANCELLED)
+        self.assertEqual(pending.cancelled_by_id, self.driver.id)
+
     def test_settlement_can_only_be_finalized_once(self):
         self.submit_settlement(actual_fuel_expense="100.00")
         second = self.submit_settlement(actual_fuel_expense="125.00")
