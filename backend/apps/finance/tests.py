@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
@@ -30,6 +31,8 @@ class FinanceApiTests(APITestCase):
         )
 
     def setUp(self):
+        # Avoid cross-test DRF throttle state leaking between API test cases.
+        cache.clear()
         self.driver = self.create_user(
             "finance-driver@example.com", "+919876540001", User.Role.DRIVER
         )
