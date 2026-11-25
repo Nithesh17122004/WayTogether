@@ -18,6 +18,42 @@ from .serializers import JourneySerializer
 from .services import MapsProviderError, MapsRateLimitError, get_route_preview, search_locations
 
 
+def _best_matching_segment(journey, origin_lat, origin_lon, destination_lat, destination_lon, radius_km):
+    """Find an ordered pickup/drop-off pair along the journey, including intermediate stops."""
+    points = [
+        (journey.origin_name, journey.origin_latitude, journey.origin_longitude),
+        *[
+            (stop.location_name, stop.latitude, stop.longitude)
+            for stop in journey.stops.all()
+        ],
+        (journey.destination_name, journey.destination_latitude, journey.destination_longitude),
+    ]
+    best = None
+    for origin_index, origin_point in enumerate(points[:-1]):
+        origin_distance = haversine_km(
+            origin_lat, origin_lon, origin_point[1], origin_point[2]
+        )
+        if origin_distance > radius_km:
+            continue
+        for destination_point in points[origin_index + 1:]:
+            destination_distance = haversine_km(
+                destination_lat, destination_lon,
+                destination_point[1], destination_point[2],
+            )
+            if destination_distance > radius_km:
+                continue
+            score = origin_distance + destination_distance
+            if best is None or score < best[0]:
+                best = (
+                    score,
+                    origin_distance,
+                    destination_distance,
+                    origin_point[0],
+                    destination_point[0],
+                )
+    return best
+
+
 def _published_queryset():
     return (
         Journey.objects.filter(
@@ -115,19 +151,23 @@ class JourneyListCreateView(APIView):
             return Response({"detail": "Seats must be 1–8 and search radius 1–100 km."}, status=400)
 
         queryset = _published_queryset().filter(travel_date=travel_date, seats_offered__gte=seats)
+        if travel_date == timezone.localdate():
+            queryset = queryset.filter(departure_time__gt=timezone.localtime().time().replace(tzinfo=None))
         matches = []
         for journey in queryset[:1000]:
-            origin_distance = haversine_km(
-                origin_lat, origin_lon, journey.origin_latitude, journey.origin_longitude
+            match = _best_matching_segment(
+                journey, origin_lat, origin_lon, destination_lat, destination_lon, radius
             )
-            destination_distance = haversine_km(
-                destination_lat, destination_lon,
-                journey.destination_latitude, journey.destination_longitude,
-            )
-            if origin_distance <= radius and destination_distance <= radius:
+            if match:
+                (
+                    journey._route_match_score,
+                    origin_distance,
+                    destination_distance,
+                    journey._matched_origin_name,
+                    journey._matched_destination_name,
+                ) = match
                 journey._origin_match_distance_km = round(origin_distance, 1)
                 journey._destination_match_distance_km = round(destination_distance, 1)
-                journey._route_match_score = origin_distance + destination_distance
                 matches.append(journey)
 
         matches.sort(key=lambda item: (
@@ -174,6 +214,10 @@ class JourneyDetailView(APIView):
                 and journey.driver.driver_profile.verification_status == DriverProfile.VerificationStatus.APPROVED
                 and journey.vehicle.verification_status == Vehicle.VerificationStatus.APPROVED
                 and journey.travel_date >= timezone.localdate()
+                and (
+                    journey.travel_date > timezone.localdate()
+                    or journey.departure_time > timezone.localtime().time().replace(tzinfo=None)
+                )
             )
             if not is_visible:
                 return Response({"detail": "Journey not found."}, status=404)
