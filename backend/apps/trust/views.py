@@ -337,13 +337,14 @@ class SubmitJourneyReviewView(APIView):
             return Response({"detail": "You can review only the other participant in your booking."}, status=404)
 
         try:
-            review = JourneyReview.objects.create(
-                booking=booking,
-                reviewer=request.user,
-                reviewee=reviewee,
-                rating=serializer.validated_data["rating"],
-                comment=serializer.validated_data["comment"],
-            )
+            with transaction.atomic():
+                review = JourneyReview.objects.create(
+                    booking=booking,
+                    reviewer=request.user,
+                    reviewee=reviewee,
+                    rating=serializer.validated_data["rating"],
+                    comment=serializer.validated_data["comment"],
+                )
         except IntegrityError:
             return Response({"detail": "You have already submitted a review for this booking."}, status=409)
 
