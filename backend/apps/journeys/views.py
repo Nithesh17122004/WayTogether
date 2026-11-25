@@ -10,8 +10,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from drivers.models import DriverProfile, Vehicle
-from drivers.services import recompute_driver_status, recompute_vehicle_status
+from apps.drivers.models import DriverProfile, Vehicle
+from apps.drivers.services import recompute_driver_status, recompute_vehicle_status
 from .geo import haversine_km
 from .models import Journey
 from .permissions import IsVerifiedDriver
@@ -174,7 +174,7 @@ class JourneyDetailView(APIView):
 class JourneyUpdateView(generics.UpdateAPIView):
     permission_classes = [IsAuthenticated, IsVerifiedDriver]
     serializer_class = JourneySerializer
-    http_method_names = ["patch", "put", "head", "options]
+    http_method_names = ["patch", "put", "head", "options"]
 
     def get_queryset(self):
         return Journey.objects.filter(driver=self.request.user, status=Journey.Status.DRAFT).select_related("vehicle")
