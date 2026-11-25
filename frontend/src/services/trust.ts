@@ -111,3 +111,23 @@ export async function submitJourneyReview(bookingId:number,payload:{rating:numbe
 export async function getMyJourneyReviews(type:"written"|"received"="written"){
   return apiRequest<JourneyReviewRecord[]>("/trust/reviews/mine/?type="+type,{},true);
 }
+
+export type AdminSafetyReportRecord = SafetyReportRecord & {
+  reporter_name:string;
+  reporter_email:string;
+  reported_user_name:string|null;
+  admin_note:string;
+};
+export async function getAdminSafetyReports(statusFilter="open"){
+  const query=statusFilter?"?status="+encodeURIComponent(statusFilter):"";
+  return apiRequest<AdminSafetyReportRecord[]>("/trust/safety/admin/reports/"+query,{},true);
+}
+export async function updateAdminSafetyReport(
+  id:number,payload:{status:string;admin_note:string},
+){
+  return apiRequest<{detail:string;report:AdminSafetyReportRecord}>(
+    "/trust/safety/admin/reports/"+id+"/",
+    {method:"PATCH",body:JSON.stringify(payload)},
+    true,
+  );
+}
