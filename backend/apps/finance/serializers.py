@@ -32,7 +32,7 @@ class ExpenseSettlementSerializer(serializers.ModelSerializer):
 
 class SandboxPaymentSerializer(serializers.ModelSerializer):
     reference = serializers.UUIDField(read_only=True)
-    contribution_id = serializers.IntegerField(source="contribution_id", read_only=True)
+    contribution_id = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = SandboxPayment
