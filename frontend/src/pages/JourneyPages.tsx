@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowRight, BadgeCheck, CalendarDays, CarFront, Clock3,
   FileCheck2, MapPin, Plus, RefreshCw, Search, ShieldCheck, Users,
@@ -52,10 +52,11 @@ function JourneyResultCard({journey}:{journey:JourneyRecord}) {
 }
 
 export function JourneySearchContent() {
+  const [searchParams] = useSearchParams();
   const [origin,setOrigin] = useState<LocationChoice|null>(null);
   const [destination,setDestination] = useState<LocationChoice|null>(null);
-  const [date,setDate] = useState(todayLocal());
-  const [seats,setSeats] = useState("1");
+  const [date,setDate] = useState(searchParams.get("date") || todayLocal());
+  const [seats,setSeats] = useState(searchParams.get("seats") || "1");
   const [radius,setRadius] = useState("25");
   const [results,setResults] = useState<JourneyRecord[]>([]);
   const [searched,setSearched] = useState(false);
@@ -85,8 +86,8 @@ export function JourneySearchContent() {
     <div className="wt-page-heading"><div><span className="wt-eyebrow">LIVE JOURNEY SEARCH</span><h1>Find people going your way.</h1><p>Search independently planned journeys and share eligible travel expenses.</p></div><span className="wt-live-status"><i/> Live marketplace API</span></div>
     <form className="wt-panel wt-market-search-form" onSubmit={submit}>
       <div className="wt-market-fields">
-        <LocationPicker label="Leaving from" placeholder="Search a city or landmark" value={origin} onChange={setOrigin}/>
-        <LocationPicker label="Going to" placeholder="Search your destination" value={destination} onChange={setDestination}/>
+        <LocationPicker label="Leaving from" placeholder="Search a city or landmark" value={origin} onChange={setOrigin} initialQuery={searchParams.get("from") || ""}/>
+        <LocationPicker label="Going to" placeholder="Search your destination" value={destination} onChange={setDestination} initialQuery={searchParams.get("to") || ""}/>
         <label className="wt-field"><span><CalendarDays size={14}/> Travel date</span><input type="date" min={todayLocal()} value={date} onChange={e=>setDate(e.target.value)} required/></label>
         <label className="wt-field"><span><Users size={14}/> Passenger seats</span><select value={seats} onChange={e=>setSeats(e.target.value)}>{[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>{n} {n===1?"seat":"seats"}</option>)}</select></label>
         <label className="wt-field"><span><MapPin size={14}/> Match radius</span><select value={radius} onChange={e=>setRadius(e.target.value)}><option value="10">Within 10 km</option><option value="25">Within 25 km</option><option value="50">Within 50 km</option><option value="100">Within 100 km</option></select></label>
