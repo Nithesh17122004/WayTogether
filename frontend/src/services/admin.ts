@@ -52,7 +52,7 @@ export type AdminLedgerRecord = {
 };
 
 type ListResponse<T> = { total_count: number; results: T[] };
-const query = (values: Record<string, string>) => {
+const query = (values: Record<string, string | undefined>) => {
   const params = new URLSearchParams();
   Object.entries(values).forEach(([key, value]) => { if (value) params.set(key, value); });
   const suffix = params.toString();
