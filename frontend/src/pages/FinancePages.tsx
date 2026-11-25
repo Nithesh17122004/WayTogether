@@ -20,6 +20,7 @@ const dateLabel=(value:string)=>new Date(value+"T00:00:00").toLocaleDateString(
 function FinanceNotice({text,kind="success"}:{text:string;kind?:"success"|"error"|"info"}) {
   return <div className={"wt-market-notice "+kind} role={kind==="error"?"alert":"status"}>{text}</div>;
 }
+const showSandboxControls=import.meta.env.DEV;
 const emptyExpenses=():SettlementInput=>({
   actual_fuel_expense:"0.00",
   actual_toll_expense:"0.00",
@@ -161,14 +162,14 @@ export function PassengerFinanceContent() {
           <div className="wt-finance-share"><span>Final eligible expense contribution</span><b>{money(item.total_amount)}</b><small>{money(item.per_seat_amount)} per seat · calculated from actual expenses</small></div>
           {payment&&<div className="wt-sandbox-payment-meta"><span>Sandbox reference <b>{payment.reference.slice(0,13)}…</b></span><span>Simulated transaction <b>{payment.status}</b></span>{payment.failure_note&&<span>Test result <b>{payment.failure_note}</b></span>}</div>}
           <div className="wt-booking-actions">
-            {!payment||status==="failed"||status==="refunded"?<button className="wt-btn wt-btn-primary" type="button" disabled={busyId===item.id} onClick={()=>startPayment(item)}>{busyId===item.id?"Starting…":status==="failed"?"Retry sandbox test":"Start sandbox payment"} <ArrowRight size={14}/></button>:null}
-            {status==="created"&&<>
+            {showSandboxControls&&(!payment||status==="failed"||status==="refunded")?<button className="wt-btn wt-btn-primary" type="button" disabled={busyId===item.id} onClick={()=>startPayment(item)}>{busyId===item.id?"Starting…":status==="failed"?"Retry sandbox test":"Start sandbox payment"} <ArrowRight size={14}/></button>:null}
+            {showSandboxControls&&status==="created"&&<>
               <button className="wt-btn wt-btn-outline" type="button" disabled={busyId===item.id} onClick={()=>simulate(item,"failed")}>Simulate failure</button>
               <button className="wt-btn wt-btn-primary" type="button" disabled={busyId===item.id} onClick={()=>simulate(item,"succeeded")}><CheckCircle2 size={14}/> Simulate success</button>
             </>}
           </div>
         </article>;
       })}</div>}
-    <p className="wt-market-footnote">The current test interface never collects card or UPI information. A sandbox success is only a database status change. No receipt, real payment confirmation or transfer to the driver is produced.</p>
+    <p className="wt-market-footnote">The current test interface never collects card or UPI information. Sandbox controls are hidden from production builds. A sandbox success is only a database status change. No receipt, real payment confirmation or transfer to the driver is produced.</p>
   </div>;
 }
