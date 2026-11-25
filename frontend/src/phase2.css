@@ -344,3 +344,23 @@
   .wt-dash-metrics { gap:8px; }.wt-metric { padding:12px; }.wt-metric b { font-size:21px; }.wt-footer-links { gap:9px; }.wt-footer-links a { font-size:8px; }
 }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition-duration:.01ms!important; animation-duration:.01ms!important; animation-iteration-count:1!important; } }
+
+
+/* Phase 3 authentication and OTP states */
+.wt-auth-card .wt-field select { width:100%; height:44px; padding:0 11px; color:#eff2ff; border:1px solid rgba(151,170,220,.2); border-radius:8px; background:rgba(3,8,24,.3); font-size:11px; }
+.wt-auth-card .wt-field select:focus { border-color:#7d6df1; outline:0; box-shadow:0 0 0 3px rgba(125,109,241,.12); }
+.wt-terms-check { display:flex; align-items:flex-start; gap:8px; color:#9eaccd; font-size:8px; line-height:1.55; }
+.wt-terms-check input { margin-top:1px; accent-color:#8e66f8; }
+.wt-auth-error { padding:10px 12px; margin:0; border:1px solid rgba(255,116,136,.2); border-radius:8px; color:#ffc2cc; background:rgba(205,56,84,.09); font-size:9px; line-height:1.55; }
+.wt-verify-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; border-top:1px solid rgba(151,170,220,.12); }
+.wt-verify-row b,.wt-verify-row small { display:block; }
+.wt-verify-row b { color:#edf1ff; font-size:10px; }
+.wt-verify-row small { margin-top:4px; color:#8997b9; font-size:8px; }
+.wt-verified-pill,.wt-pending-pill { display:inline-flex; align-items:center; gap:4px; padding:5px 8px; border-radius:100px; white-space:nowrap; font-size:8px; font-weight:800; }
+.wt-verified-pill { color:#7ce0c4; background:rgba(51,184,143,.12); }
+.wt-pending-pill { color:#d8bdff; background:rgba(147,93,239,.12); }
+.wt-verify-actions { display:flex; align-items:center; gap:13px; margin:9px 0 17px; }
+.wt-link-button { padding:0; border:0; color:#b99eff; background:transparent; font-size:9px; font-weight:750; cursor:pointer; }
+.wt-link-button:disabled { opacity:.5; cursor:wait; }
+.wt-otp-dev-note { display:flex; align-items:flex-start; gap:8px; margin-top:12px; padding:11px; border:1px solid rgba(74,192,187,.15); border-radius:8px; color:#58cec6; background:rgba(43,160,157,.055); }
+.wt-otp-dev-note span { color:#9eacc6; font-size:8px; line-height:1.6; }
