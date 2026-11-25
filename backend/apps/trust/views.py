@@ -338,14 +338,14 @@ class SubmitJourneyReviewView(APIView):
             Booking.objects.select_related("journey", "journey__driver", "passenger"),
             pk=booking_id,
         )
-        if booking.status != Booking.Status.CONFIRMED or booking.journey.status != Journey.Status.COMPLETED:
-            return Response({"detail": "Reviews are available only after a confirmed booking is completed."}, status=409)
         if request.user.id == booking.passenger_id:
             reviewee = booking.journey.driver
         elif request.user.id == booking.journey.driver_id:
             reviewee = booking.passenger
         else:
             return Response({"detail": "You can review only the other participant in your booking."}, status=404)
+        if booking.status != Booking.Status.CONFIRMED or booking.journey.status != Journey.Status.COMPLETED:
+            return Response({"detail": "Reviews are available only after a confirmed booking is completed."}, status=409)
 
         try:
             with transaction.atomic():
