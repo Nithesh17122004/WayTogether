@@ -1,3 +1,4 @@
+import django.core.validators
 import django.db.models.deletion
 from decimal import Decimal
 from django.conf import settings
@@ -20,8 +21,8 @@ class Migration(migrations.Migration):
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("seats_requested", models.PositiveSmallIntegerField(
                     validators=[
-                        models.MinValueValidator(1),
-                        models.MaxValueValidator(8),
+                        django.core.validators.MinValueValidator(1),
+                        django.core.validators.MaxValueValidator(8),
                     ],
                 )),
                 ("request_message", models.CharField(blank=True, max_length=500)),
