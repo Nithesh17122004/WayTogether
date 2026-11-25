@@ -7,7 +7,7 @@ from django.core.cache import cache
 logger = logging.getLogger(__name__)
 
 NOMINATIM_URL = os.getenv("NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
-OSRM_ROUTE_URL = os.getenv("OSRM_ROUTE_URL", "https://router.project-osrm.org/route/v1/driving")
+OSRM_ROUTE_URL = os.getenv("OSRM_ROUTE_URL", "")
 MAPS_USER_AGENT = os.getenv(
     "MAPS_USER_AGENT",
     "WayTogether/1.0 (journey search; configure a monitored production provider)",
@@ -18,12 +18,21 @@ class MapsProviderError(Exception):
     pass
 
 
+class MapsRateLimitError(MapsProviderError):
+    pass
+
+
 def search_locations(query):
     query = " ".join(query.split())[:160]
     key = "waytogether:geocode:" + query.casefold()
     cached = cache.get(key)
     if cached is not None:
         return cached
+
+    # The public OSMF Nominatim endpoint is limited to one request per second
+    # for the whole application. Cache repeat queries and reject excess calls.
+    if not cache.add("waytogether:nominatim:global-rate-limit", True, timeout=1):
+        raise MapsRateLimitError("Please wait a moment before searching for another location.")
 
     try:
         response = requests.get(
@@ -63,6 +72,8 @@ def search_locations(query):
 
 
 def get_route_preview(origin_lat, origin_lon, destination_lat, destination_lon):
+    if not OSRM_ROUTE_URL:
+        raise MapsProviderError("A permitted routing provider is not configured. Configure OSRM_ROUTE_URL before requesting road routes.")
     coordinates = f"{origin_lon},{origin_lat};{destination_lon},{destination_lat}"
     try:
         response = requests.get(
