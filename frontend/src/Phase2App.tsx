@@ -1,4 +1,5 @@
 import "./phase2.css";
+import { apiRequest, setAuthTokens } from "./services/api";
 import { useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownUp, ArrowRight, ArrowUpRight, BadgeCheck, Bell, CalendarDays,
@@ -104,9 +105,139 @@ function PublishPage() {
   return <PublicLayout><main className="wt-page"><div className="wt-container wt-form-page"><div className="wt-breadcrumb"><Link to="/">Home</Link><ChevronRight size={13}/> Share a journey</div><div className="wt-page-heading"><div><Eyebrow>FOR PEOPLE WITH A SEAT TO SHARE</Eyebrow><h1>Share the journey you're taking.</h1><p>Tell fellow travellers about a journey you already planned.</p></div><PreviewLabel/></div><div className="wt-form-layout"><form className="wt-panel wt-form-card" onSubmit={submit}><div className="wt-form-section"><h3><span>01</span> Your route</h3><div className="wt-form-grid"><label className="wt-field"><span>Starting point</span><input placeholder="City, area or landmark" required/></label><label className="wt-field"><span>Destination</span><input placeholder="Where are you headed?" required/></label><label className="wt-field wt-span-2"><span>Intermediate stops <small>(optional)</small></span><input placeholder="Add a stop along your route"/></label></div></div><div className="wt-form-section"><h3><span>02</span> Journey schedule</h3><div className="wt-form-grid"><label className="wt-field"><span>Travel date</span><input type="date" required/></label><label className="wt-field"><span>Departure time</span><input type="time" required/></label><label className="wt-field"><span>Available passenger seats</span><select defaultValue="2"><option value="1">1 seat</option><option value="2">2 seats</option><option value="3">3 seats</option><option value="4">4 seats</option></select></label><label className="wt-field"><span>Vehicle</span><select defaultValue="" required><option value="" disabled>Select a verified vehicle</option><option value="pending">Vehicle selection after verification</option></select></label></div></div><div className="wt-form-section"><h3><span>03</span> Expense-sharing details</h3><div className="wt-info-callout"><ShieldCheck size={19}/><p>Contributions are intended only for a reasonable share of eligible journey expenses. This is not a fare-setting tool.</p></div><label className="wt-field"><span>Estimated contribution per passenger (₹)</span><input type="number" min="0" placeholder="Subject to the approved expense-sharing policy"/></label></div><div className="wt-attestation"><label><input type="checkbox" checked={attest} onChange={e=>setAttest(e.target.checked)}/><span><b>I independently planned this journey.</b><small>I confirm I would make this journey even if no passengers booked seats. The trip is not being created to generate income from passenger transport.</small></span></label></div><button className="wt-btn wt-btn-primary wt-btn-large" type="submit">Review journey draft <ArrowRight size={17}/></button>{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}</form><aside className="wt-panel wt-side-guide"><div className="wt-guide-icon"><ShieldCheck size={26}/></div><h3>Before you share</h3><ul><li><Check/> Plan your journey independently.</li><li><Check/> Share only eligible journey expenses.</li><li><Check/> Keep driver and vehicle details accurate.</li><li><Check/> Follow community and safety rules.</li></ul><div className="wt-guide-foot">Driver verification and journey publishing are not active in this prototype.</div></aside></div></div></main></PublicLayout>;
 }
 
-function AuthPage({ mode }: { mode:"login"|"register" }) {
-  const [notice,setNotice] = useState(""); const isRegister=mode==="register";
-  return <PublicLayout><main className="wt-auth-page"><div className="wt-auth-shell"><div className="wt-auth-brand"><Brand/><Eyebrow>YOUR JOURNEY, CONNECTED</Eyebrow><h1>{isRegister?"Start with a shared direction.":"Welcome back."}</h1><p>{isRegister?"Create your WayTogether account and discover a more connected way to travel.":"Sign in to continue your WayTogether journey."}</p><div className="wt-auth-benefit"><ShieldCheck/><span><b>Thoughtful travel starts with trust.</b><small>Designed around independently planned journeys and transparent expense sharing.</small></span></div></div><form className="wt-panel wt-auth-card" onSubmit={e=>{e.preventDefault();setNotice("Authentication screens are ready for review. Account creation and sign-in will be connected in Phase 3.");}}><Eyebrow>{isRegister?"CREATE YOUR ACCOUNT":"ACCOUNT ACCESS"}</Eyebrow><h2>{isRegister?"Create your account":"Sign in to WayTogether"}</h2><p>{isRegister?"A few details to get started.":"Enter your details to access your account."}</p>{isRegister&&<label className="wt-field"><span>Full name</span><input placeholder="Your full name" required/></label>}<label className="wt-field"><span>Email address</span><input type="email" placeholder="you@example.com" required/></label>{isRegister&&<label className="wt-field"><span>Mobile number</span><input type="tel" placeholder="+91 98765 43210" required/></label>}<label className="wt-field"><span>Password</span><input type="password" minLength={8} placeholder="At least 8 characters" required/></label>{!isRegister&&<div className="wt-auth-extras"><label><input type="checkbox"/> Remember me</label><a href="mailto:hello@waytogether.in">Need help?</a></div>}<button className="wt-btn wt-btn-primary wt-full" type="submit">{isRegister?"Create account":"Sign in"} <ArrowRight size={16}/></button>{notice&&<p className="wt-inline-notice">{notice}</p>}<p className="wt-auth-switch">{isRegister?"Already have an account?":"New to WayTogether?"} <Link to={isRegister?"/login":"/register"}>{isRegister?"Log in":"Create an account"}</Link></p><small className="wt-legal-small">Account functionality is currently a design preview.</small></form></div></main></PublicLayout>;
+type AuthMode = "login" | "register";
+type VerificationChannel = "email" | "phone";
+type RegisterResult = {
+  detail: string;
+  user: { email: string; phone: string; role: string };
+  verification: { email: string; phone: string };
+  delivery_notes?: Record<string, string>;
+};
+type LoginResult = {
+  access: string;
+  refresh: string;
+  user: { role: "passenger" | "driver" | "admin"; display_name: string };
+};
+
+function AuthPage({ mode }: { mode: AuthMode }) {
+  const navigate = useNavigate();
+  const isRegister = mode === "register";
+  const [stage, setStage] = useState<"form" | "verify">("form");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("+91");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"passenger" | "driver">("passenger");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [emailCode, setEmailCode] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
+  const [verified, setVerified] = useState({ email: false, phone: false });
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+
+  const register = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const result = await apiRequest<RegisterResult>("/auth/register/", {
+        method: "POST",
+        body: JSON.stringify({
+          full_name: fullName,
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          password,
+          role,
+          accepted_terms: acceptedTerms,
+        }),
+      });
+      setStage("verify");
+      setNotice(result.detail);
+      if (result.delivery_notes && Object.keys(result.delivery_notes).length) {
+        setNotice(result.detail + " " + Object.values(result.delivery_notes).join(" "));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyChannel = async (channel: VerificationChannel) => {
+    const code = channel === "email" ? emailCode : phoneCode;
+    if (!/^\\d{6}$/.test(code)) { setError("Enter the six-digit code."); return; }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const result = await apiRequest<{ detail: string; can_sign_in: boolean }>("/auth/verification/confirm/", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim().toLowerCase(), channel, code }),
+      });
+      setVerified(previous => ({ ...previous, [channel]: true }));
+      setNotice(result.detail + (result.can_sign_in ? " You can now sign in." : ""));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed. Request a new code.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resendCode = async (channel: VerificationChannel) => {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const result = await apiRequest<{ detail: string }>("/auth/verification/request/", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim().toLowerCase(), channel }),
+      });
+      setNotice(result.detail + (channel === "phone" ? " In local development, check the Django server console." : ""));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not request a new code.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const login = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const result = await apiRequest<LoginResult>("/auth/login/", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+      setAuthTokens({ access: result.access, refresh: result.refresh });
+      const destination = result.user.role === "admin" ? "/admin" : result.user.role === "driver" ? "/dashboard/driver" : "/dashboard/passenger";
+      navigate(destination);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign in failed. Check your details and try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <PublicLayout><main className="wt-auth-page"><div className="wt-auth-shell">
+    <div className="wt-auth-brand"><Brand/><Eyebrow>YOUR JOURNEY, CONNECTED</Eyebrow><h1>{isRegister ? "Start with a shared direction." : "Welcome back."}</h1><p>{isRegister ? "Create your WayTogether account and discover a more connected way to travel." : "Sign in to continue your WayTogether journey."}</p><div className="wt-auth-benefit"><ShieldCheck/><span><b>Thoughtful travel starts with trust.</b><small>Designed around independently planned journeys and transparent expense sharing.</small></span></div></div>
+    {isRegister && stage === "verify" ? <section className="wt-panel wt-auth-card">
+      <Eyebrow>VERIFY YOUR ACCOUNT</Eyebrow><h2>One more step.</h2><p>Verify the email and mobile number registered to {email}.</p>
+      <div className="wt-verify-row"><div><b>Email verification</b><small>{verified.email ? "Verified" : "Enter the code sent to your email."}</small></div>{verified.email ? <span className="wt-verified-pill"><Check size={13}/> Verified</span> : <span className="wt-pending-pill">Pending</span>}</div>
+      {!verified.email && <><label className="wt-field"><span>Email code</span><input value={emailCode} onChange={e=>setEmailCode(e.target.value.replace(/\\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code"/></label><div className="wt-verify-actions"><button className="wt-btn wt-btn-primary" disabled={busy} onClick={()=>verifyChannel("email")}>Verify email</button><button type="button" className="wt-link-button" disabled={busy} onClick={()=>resendCode("email")}>Resend code</button></div></>}
+      <div className="wt-verify-row"><div><b>Mobile verification</b><small>{verified.phone ? "Verified" : "Enter the code sent to your mobile."}</small></div>{verified.phone ? <span className="wt-verified-pill"><Check size={13}/> Verified</span> : <span className="wt-pending-pill">Pending</span>}</div>
+      {!verified.phone && <><label className="wt-field"><span>Mobile code</span><input value={phoneCode} onChange={e=>setPhoneCode(e.target.value.replace(/\\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code"/></label><div className="wt-verify-actions"><button className="wt-btn wt-btn-primary" disabled={busy} onClick={()=>verifyChannel("phone")}>Verify mobile</button><button type="button" className="wt-link-button" disabled={busy} onClick={()=>resendCode("phone")}>Resend code</button></div></>}
+      <div className="wt-otp-dev-note"><ShieldCheck size={15}/><span>Development mode: email codes appear in the Django console email output; mobile codes are logged in the Django server console. Production SMS delivery must be configured before launch.</span></div>
+      {error && <p className="wt-auth-error" role="alert">{error}</p>}{notice && <p className="wt-inline-notice" role="status">{notice}</p>}
+      {verified.email && verified.phone ? <Link className="wt-btn wt-btn-primary wt-full" to="/login">Continue to sign in <ArrowRight size={16}/></Link> : <p className="wt-legal-small">Both channels must be verified before sign-in is enabled.</p>}
+    </section> : <form className="wt-panel wt-auth-card" onSubmit={isRegister ? register : login}>
+      <Eyebrow>{isRegister ? "CREATE YOUR ACCOUNT" : "ACCOUNT ACCESS"}</Eyebrow><h2>{isRegister ? "Create your account" : "Sign in to WayTogether"}</h2><p>{isRegister ? "A few details to get started." : "Enter your details to access your account."}</p>
+      {isRegister && <label className="wt-field"><span>Full name</span><input value={fullName} onChange={e=>setFullName(e.target.value)} placeholder="Your full name" autoComplete="name" required/></label>}
+      <label className="wt-field"><span>Email address</span><input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" autoComplete="email" required/></label>
+      {isRegister && <><label className="wt-field"><span>Mobile number (international format)</span><input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" placeholder="+919876543210" autoComplete="tel" pattern="^\\+[1-9]\\d{7,14}$" required/></label><label className="wt-field"><span>Account type</span><select value={role} onChange={e=>setRole(e.target.value as "passenger"|"driver")}><option value="passenger">Passenger</option><option value="driver">Driver</option></select></label></>}
+      <label className="wt-field"><span>Password</span><input value={password} onChange={e=>setPassword(e.target.value)} type="password" minLength={8} placeholder="At least 8 characters" autoComplete={isRegister ? "new-password" : "current-password"} required/></label>
+      {isRegister && <label className="wt-terms-check"><input type="checkbox" checked={acceptedTerms} onChange={e=>setAcceptedTerms(e.target.checked)} required/><span>I accept the WayTogether terms and privacy policy.</span></label>}
+      {error && <p className="wt-auth-error" role="alert">{error}</p>}{notice && <p className="wt-inline-notice" role="status">{notice}</p>}
+      <button className="wt-btn wt-btn-primary wt-full" type="submit" disabled={busy}>{busy ? "Please wait…" : isRegister ? "Create account" : "Sign in"} <ArrowRight size={16}/></button>
+      <p className="wt-auth-switch">{isRegister ? "Already have an account?" : "New to WayTogether?"} <Link to={isRegister ? "/login" : "/register"}>{isRegister ? "Log in" : "Create an account"}</Link></p>
+      <small className="wt-legal-small">{isRegister ? "Email and mobile verification are required before the first sign-in." : "Your account must have verified email and mobile number."}</small>
+    </form>}
+  </div></main></PublicLayout>;
 }
 
 const passengerMenu=[{label:"Overview",to:"/dashboard/passenger",icon:LayoutDashboard},{label:"My bookings",to:"/dashboard/passenger",icon:CalendarDays},{label:"Messages",to:"/dashboard/passenger",icon:MessageCircle},{label:"Saved journeys",to:"/dashboard/passenger",icon:Compass},{label:"Profile",to:"/dashboard/passenger",icon:Settings}];
