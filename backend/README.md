@@ -203,3 +203,75 @@ The initial implementation examines up to 1,000 published journeys for the selec
 - No reservation, payment, payout, commission, chat, live tracking or passenger contact disclosure is enabled.
 - Stop matching supports only the ordered saved waypoints, not arbitrary pickup/drop-off points along a road polyline.
 - Road distance and estimated duration are only present when a routing provider is configured.
+
+
+## Booking and seat management API (Phase 6)
+
+All endpoints are prefixed with `/api/v1/bookings/`.
+
+| Method | Endpoint | Access | Purpose |
+|---|---|---|---|
+| POST | `/` | Verified Passenger | Request seats on a published journey |
+| GET | `mine/` | Verified Passenger | List the passenger's own bookings |
+| GET | `driver/requests/` | Verified Driver | List requests for the driver's journeys; optional `?status=pending` |
+| GET | `{id}/` | Booking passenger or journey driver | Read one booking |
+| POST | `{id}/approve/` | Owning verified Driver | Approve a pending request and reserve seats |
+| POST | `{id}/decline/` | Owning verified Driver | Decline a pending request |
+| POST | `{id}/cancel/` | Booking passenger or journey driver | Cancel a pending/confirmed booking before departure |
+
+### Create a passenger booking request
+
+```json
+{
+  "journey": 42,
+  "seats_requested": 1,
+  "request_message": "I can meet at the agreed pickup point."
+}
+```
+
+A request starts as `pending`. Creating a pending request does not reserve seats. The driver must approve it before the seats are counted as confirmed. One passenger may have only one pending or confirmed booking for the same journey.
+
+### Driver approval
+
+```json
+{
+  "driver_response": "Confirmed. See you at the pickup point."
+}
+```
+
+Approval runs inside a database transaction and locks the Journey row before checking the confirmed seat count. If enough seats no longer remain, the API returns `409 Conflict` and does not confirm the request. The approval also checks that the journey is still published, has not departed, and the driver profile and selected vehicle remain approved.
+
+### Booking statuses
+- `pending`: sent to the driver; does not reserve seats.
+- `confirmed`: driver approved; requested seats are reserved.
+- `declined`: driver declined the request.
+- `cancelled`: passenger, driver or journey cancellation closed the booking.
+
+The database enforces a conditional unique constraint so a passenger cannot have more than one active (pending/confirmed) booking for a journey. Once a booking is declined or cancelled, the passenger may submit a new request while the journey is still eligible and has availability.
+
+### Cancellation
+- A passenger may cancel their own pending or confirmed booking before departure.
+- A driver may cancel a booking before departure.
+- Cancelling a journey also cancels all its pending and confirmed bookings in the same transaction.
+- After departure, normal booking cancellation is blocked.
+- Cancelled confirmed bookings release their seats.
+
+### Seat and expense allocation rules
+- `seats_offered` is the maximum number of passenger seats on the journey.
+- `confirmed_seats` is the sum of seats on confirmed bookings only.
+- `available_seats = seats_offered - confirmed_seats`.
+- Pending requests do not count as reserved seats.
+- Search checks `available_seats`, not just the originally offered seat count.
+- After a booking is approved or a confirmed booking is cancelled, provisional eligible-expense estimates are recalculated equally across the driver plus all currently confirmed passenger seats. A multi-seat booking receives that per-person estimate multiplied by its seat count.
+
+These amounts are estimates only. They can change as more seats are confirmed or cancelled. No money is collected, charged, refunded or paid out in Phase 6. Phase 7 must define the final amount calculation and freeze point before payments are enabled.
+
+### Concurrency and production database
+The approve/cancel journey workflows use `transaction.atomic()` and `select_for_update()` on the parent Journey row so competing approvals are serialized on databases that support row-level locks (such as PostgreSQL). The conditional unique constraint also protects duplicate active requests. SQLite local development does not provide equivalent row-locking behavior; concurrency testing must be repeated against PostgreSQL before production.
+
+## Phase 6 scope limitations
+- No payment collection, refunds, driver payouts or commission.
+- No chat, email/SMS booking notifications or push notifications; these belong to Phase 8.
+- No in-app contact detail exchange.
+- No check-in/live journey tracking or completion workflow.
+- No automatic release/expiry of pending requests before departure.
