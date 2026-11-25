@@ -358,3 +358,66 @@ Do not enable sandbox simulation in a production environment unless it is a cont
 - No commission, platform fee, tax calculation or GST invoice generation.
 - No receipt upload or independent proof verification of driver's entered expenses.
 - Expense totals are driver-declared and remain subject to product, legal and policy review.
+
+
+## Communication, safety and trust API (Phase 8)
+
+All endpoints are prefixed with `/api/v1/trust/`.
+
+| Method | Endpoint | Access | Purpose |
+|---|---|---|---|
+| GET | `notifications/` | Authenticated user | Read the user's latest 100 in-app notifications and unread count |
+| POST | `notifications/{id}/read/` | Notification owner | Mark one notification as read |
+| POST | `notifications/read-all/` | Authenticated user | Mark all of the user's unread notifications as read |
+| GET / POST | `bookings/{booking_id}/messages/` | Booking passenger or driver | Read or send a booking-linked message |
+| GET / POST | `safety/contacts/` | Authenticated owner | List or save up to three emergency contacts |
+| PATCH / DELETE | `safety/contacts/{id}/` | Contact owner | Update or delete an emergency contact |
+| POST | `safety/reports/` | Booking/journey participant | Submit a private safety report |
+| GET | `safety/reports/mine/` | Authenticated reporter | List only reports submitted by the current user |
+| GET | `safety/admin/reports/` | Django staff | Filter and review the safety report queue |
+| PATCH | `safety/admin/reports/{id}/` | Django staff | Update status and private admin note |
+| POST | `reviews/{booking_id}/` | Booking passenger or driver | Review the other participant after completion |
+| GET | `reviews/mine/` | Authenticated user | List reviews written by the user; `?type=received` shows received reviews |
+
+### Booking-linked messages
+- Each thread is attached to one Booking.
+- Only the booking passenger and the journey's driver can read or write the thread.
+- Messages can be sent while the booking is pending or confirmed and before scheduled departure, while the journey remains published.
+- Old messages remain readable to the two participants after cancellation/completion, but the thread becomes read-only.
+- Messages are plain text, limited to 1,500 characters, rate-limited and immutable after sending. No message attachments or contact sharing feature is provided.
+- Do not send passwords, OTPs, banking details or payment credentials.
+
+### In-app notifications
+The backend writes notifications for booking requests, booking approval/decline/cancellation, journey cancellation, new messages, final expense contributions and safety-report status changes. Notifications are account-scoped, private, and can be marked read individually or in bulk. This phase implements in-app notifications only; it does not send email, SMS or push notifications.
+
+### Emergency contacts
+- Each account can store up to three contacts with an international-format phone number.
+- Contact details are returned only to the owning account; they are not shown to the other booking participant.
+- Saving a contact does not notify that contact, share a trip, send an SMS, or create an emergency dispatch.
+- The user can update or remove a saved contact at any time.
+
+### Safety reports
+- A report must be linked to a booking or journey the reporter participated in.
+- The reported person, where specified, must be another participant in that journey.
+- Reporter access is limited to their own reports. The public reporter response omits internal administrator notes.
+- Django staff can filter reports by status/priority, update the report status and add a private note. A status change creates an in-app notification for the reporter.
+- Categories include unsafe driving, harassment/inappropriate behaviour, profile/journey misrepresentation, expense contribution disputes, accidents/injuries and other concerns.
+- The report form is not an emergency service. In immediate danger or a medical emergency, users must contact local emergency services directly.
+
+### Journey reviews
+- Only a passenger or driver on a confirmed booking may submit a review.
+- Reviews are available only after the Journey reaches `completed`.
+- Each participant may submit one review per booking, rating the other participant from 1 to 5 with an optional comment.
+- Reviews are tied to the booking; the other user cannot be selected as an arbitrary target.
+
+### Rate limits
+- `message_send`: 30 requests/hour.
+- `safety_action`: 10 requests/hour.
+
+### Phase 8 boundaries
+- No real-time location sharing, trip tracking, SOS dispatch or emergency services integration.
+- No automatic SMS/email/push notification delivery.
+- No emergency-contact disclosure to the other participant.
+- No attachments or direct exchange of phone/email details in message threads.
+- No automated moderation or guarantee of report resolution.
+- Reviews are private to the reviewer/reviewee account APIs; no public rating score or search ranking is calculated in this phase.
