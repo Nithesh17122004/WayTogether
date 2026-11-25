@@ -7,10 +7,11 @@ type Props = {
   placeholder: string;
   value: LocationChoice | null;
   onChange: (value: LocationChoice | null) => void;
+  initialQuery?: string;
 };
 
-export default function LocationPicker({ label, placeholder, value, onChange }: Props) {
-  const [query, setQuery] = useState(value?.display_name ?? "");
+export default function LocationPicker({ label, placeholder, value, onChange, initialQuery = "" }: Props) {
+  const [query, setQuery] = useState(value?.display_name ?? initialQuery);
   const [results, setResults] = useState<LocationChoice[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
