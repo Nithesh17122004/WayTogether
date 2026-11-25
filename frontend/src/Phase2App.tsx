@@ -4,9 +4,9 @@ import { JourneyDetailContent, JourneyPublishContent, JourneySearchContent, MyJo
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownUp, ArrowRight, ArrowUpRight, BadgeCheck, Bell, CalendarDays,
-  CarFront, Check, ChevronRight, CircleHelp, Clock3, Compass, FileCheck2,
+  CarFront, Check, ChevronRight, CircleHelp, Compass, FileCheck2,
   LayoutDashboard, LogOut, MapPin, Menu, MessageCircle, Plus, Search,
-  Settings, ShieldCheck, SlidersHorizontal, Sparkles, Star, Users, X,
+  Settings, ShieldCheck, Sparkles, Star, Users, X,
 } from "lucide-react";
 import {
   BrowserRouter, Link, NavLink, Route, Routes, useNavigate,
