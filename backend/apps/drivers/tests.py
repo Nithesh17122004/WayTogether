@@ -158,6 +158,7 @@ class DriverVerificationApiTests(APITestCase):
             phone="+919876543299",
             password="A-Strong-Unique-Password-928!",
         )
+        self.assertEqual(admin.role, User.Role.ADMIN)
         self.client.force_authenticate(driver)
         uploaded = self.upload_document(self.client, "driver_license")
         document = VerificationDocument.objects.get(pk=uploaded.data["id"])
