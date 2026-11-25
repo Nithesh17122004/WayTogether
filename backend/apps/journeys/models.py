@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -71,9 +73,7 @@ class Journey(models.Model):
         # Early estimate assumes every offered passenger seat is occupied.
         # Final expense allocation is recalculated at booking time in Phase 6.
         people_count = self.seats_offered + 1  # includes the driver
-        return (self.estimated_total_expenses / people_count).quantize(
-            self.fuel_expense.as_tuple().exponent and self.fuel_expense.__class__("0.01")
-        )
+        return (self.estimated_total_expenses / people_count).quantize(Decimal("0.01"))
 
     def __str__(self):
         return f"{self.origin_name} → {self.destination_name} on {self.travel_date}"
