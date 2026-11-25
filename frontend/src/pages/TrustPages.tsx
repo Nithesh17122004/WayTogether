@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
-  ArrowRight, Bell, Check, CheckCheck, Clock3, MessageCircle,
+  ArrowRight, Bell, Check, CheckCheck, MessageCircle,
   RefreshCw, ShieldAlert, ShieldCheck, Star, Trash2, UserRound,
 } from "lucide-react";
 import { getMyBookings, getDriverBookingRequests, type BookingRecord } from "../services/bookings";
@@ -71,6 +71,8 @@ export function NotificationCenterContent({role}:{role:WorkspaceRole}) {
 }
 
 export function MessagesContent({role}:{role:WorkspaceRole}) {
+  const [searchParams]=useSearchParams();
+  const requestedBooking=Number(searchParams.get("booking"))||null;
   const [bookings,setBookings]=useState<BookingRecord[]>([]);
   const [selectedId,setSelectedId]=useState<number|null>(null);
   const [messages,setMessages]=useState<BookingMessageRecord[]>([]);
