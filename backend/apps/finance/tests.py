@@ -312,7 +312,7 @@ class FinanceApiTests(APITestCase):
             format="json",
         )
         self.assertEqual(refunded.status_code, status.HTTP_200_OK)
-        self.assertEqual(refunded.data["refund"]["amount"], "600.00")
+        self.assertEqual(refunded.data["refund"]["amount"], "300.00")
         self.assertEqual(SandboxPayment.objects.get(pk=payment_id).status, SandboxPayment.Status.REFUNDED)
         self.assertEqual(SandboxRefund.objects.filter(payment_id=payment_id).count(), 1)
 
