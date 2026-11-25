@@ -434,7 +434,36 @@ class BookingApiTests(APITestCase):
             verification_status=Vehicle.VerificationStatus.APPROVED,
         )
 
+    def create_approved_documents(self, driver, vehicle):
+        expiry = timezone.localdate() + timedelta(days=365)
+        base = {
+            "owner": driver,
+            "file": "private/test-driver-document.pdf",
+            "original_file_name": "test-driver-document.pdf",
+            "content_type": "application/pdf",
+            "file_size": 128,
+            "review_status": VerificationDocument.ReviewStatus.APPROVED,
+            "reviewed_at": timezone.now(),
+            "is_current": True,
+        }
+        VerificationDocument.objects.create(
+            document_type=VerificationDocument.DocumentType.DRIVER_LICENSE,
+            **base,
+        )
+        for document_type in (
+            VerificationDocument.DocumentType.VEHICLE_REGISTRATION,
+            VerificationDocument.DocumentType.INSURANCE,
+            VerificationDocument.DocumentType.VEHICLE_PHOTO,
+        ):
+            VerificationDocument.objects.create(
+                document_type=document_type,
+                vehicle=vehicle,
+                expiry_date=expiry if document_type == VerificationDocument.DocumentType.INSURANCE else None,
+                **base,
+            )
+
     def create_journey(self, driver, vehicle, seats=2):
+        self.create_approved_documents(driver, vehicle)
         travel_date = timezone.localdate() + timedelta(days=4)
         journey = Journey.objects.create(
             driver=driver,
