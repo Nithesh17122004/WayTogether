@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  ArrowRight, BadgeCheck, CalendarDays, CarFront, Clock3,
+  ArrowRight, BadgeCheck, CalendarDays, CarFront, Check, Clock3,
   FileCheck2, MapPin, Plus, RefreshCw, Search, ShieldCheck, Users,
   XCircle,
 } from "lucide-react";
@@ -32,7 +32,7 @@ const displayDuration = (minutes: number | null) => {
   return hours ? hours + " hr " + mins + " min" : mins + " min";
 };
 
-function PageNotice({children,kind="info"}:{children:string;kind?:"info"|"error"|"success"}) {
+function PageNotice({children,kind="info"}:{children:ReactNode;kind?:"info"|"error"|"success"}) {
   return <div className={"wt-market-notice " + kind} role={kind==="error"?"alert":"status"}>{children}</div>;
 }
 
