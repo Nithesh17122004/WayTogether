@@ -48,6 +48,18 @@ def finalize_expense_settlement(*, journey_id, driver, data):
     if hasattr(journey, "expense_settlement"):
         raise ValidationError({"journey": "Final expenses have already been submitted and locked."})
 
+    # Requests that were still pending at departure can no longer be approved.
+    now = timezone.now()
+    Booking.objects.filter(
+        journey=journey,
+        status=Booking.Status.PENDING,
+    ).update(
+        status=Booking.Status.CANCELLED,
+        cancelled_at=now,
+        cancelled_by=driver,
+        updated_at=now,
+    )
+
     bookings = list(
         Booking.objects.select_for_update()
         .filter(journey=journey, status=Booking.Status.CONFIRMED)
