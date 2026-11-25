@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "apps.accounts.apps.AccountsConfig",
     "apps.drivers.apps.DriversConfig",
     "apps.journeys.apps.JourneysConfig",
+    "apps.bookings.apps.BookingsConfig",
     "apps.core",
 ]
 
@@ -126,6 +127,8 @@ REST_FRAMEWORK = {
         "otp": "5/hour",
         "map_search": "30/minute",
         "route_preview": "30/minute",
+        "booking_request": "10/hour",
+        "booking_action": "30/hour",
     },
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
