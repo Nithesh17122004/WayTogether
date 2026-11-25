@@ -41,8 +41,8 @@ class HealthCheckView(APIView):
 
 
 class AdminOverviewView(APIView):
-    throttle_scope = "admin_read"
     """Aggregated, read-only operational metrics for staff administrators."""
+    throttle_scope = "admin_read"
     permission_classes = [IsAdminUser]
 
     def get(self, request):
@@ -261,8 +261,8 @@ class AdminBookingListView(APIView):
 
 
 class AdminExpenseLedgerView(APIView):
-    throttle_scope = "admin_read"
     """Read-only view of completed expense allocations, never transaction processing."""
+    throttle_scope = "admin_read"
     permission_classes = [IsAdminUser]
 
     def get(self, request):
