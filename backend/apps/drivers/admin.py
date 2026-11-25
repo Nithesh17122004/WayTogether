@@ -31,7 +31,7 @@ class VerificationDocumentAdmin(admin.ModelAdmin):
     list_filter = ("document_type", "review_status", "is_current")
     search_fields = ("owner__email", "owner__phone", "vehicle__registration_number")
     readonly_fields = (
-        "owner", "vehicle", "document_type", "file", "original_file_name",
+        "owner", "vehicle", "document_type", "original_file_name",
         "content_type", "file_size", "expiry_date", "review_status",
         "review_note", "reviewed_by", "reviewed_at", "is_current", "uploaded_at",
     )
