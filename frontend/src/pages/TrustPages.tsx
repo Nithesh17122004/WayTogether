@@ -154,7 +154,7 @@ export function SafetyCenterContent({role}:{role:WorkspaceRole}) {
   const addContact=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();setBusy(true);setError("");setNotice("");
     try{
-      const result=await createEmergencyContact(contactForm);
+      await createEmergencyContact(contactForm);
       setNotice("Emergency contact saved privately to your account.");
       setContactForm({contact_name:"",phone:"+91",relationship:"",is_primary:false});
       await load();
