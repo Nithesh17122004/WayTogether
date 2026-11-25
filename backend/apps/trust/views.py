@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -33,6 +35,18 @@ from .services import mark_notification_read, notify, notify_booking_participant
 
 def _is_booking_participant(booking, user):
     return booking.passenger_id == user.id or booking.journey.driver_id == user.id
+
+
+def _booking_messages_open(booking):
+    departure = timezone.make_aware(
+        datetime.combine(booking.journey.travel_date, booking.journey.departure_time),
+        timezone.get_current_timezone(),
+    )
+    return (
+        booking.status in (Booking.Status.PENDING, Booking.Status.CONFIRMED)
+        and booking.journey.status == Journey.Status.PUBLISHED
+        and timezone.now() < departure
+    )
 
 
 class NotificationInboxView(APIView):
@@ -82,8 +96,7 @@ class BookingMessageThreadView(APIView):
         messages = BookingMessage.objects.filter(booking=booking).select_related("sender")
         return Response({
             "booking_id": booking.pk,
-            "can_send": booking.status in (Booking.Status.PENDING, Booking.Status.CONFIRMED)
-                and booking.journey.status == Journey.Status.PUBLISHED,
+            "can_send": _booking_messages_open(booking),
             "results": BookingMessageSerializer(
                 messages[:250], many=True, context={"request": request}
             ).data,
@@ -102,10 +115,8 @@ class BookingMessageThreadView(APIView):
             )
             if not _is_booking_participant(booking, request.user):
                 return Response({"detail": "Message thread not found."}, status=status.HTTP_404_NOT_FOUND)
-            if booking.status not in (Booking.Status.PENDING, Booking.Status.CONFIRMED):
-                return Response({"detail": "Messages are closed for this booking."}, status=status.HTTP_409_CONFLICT)
-            if booking.journey.status != Journey.Status.PUBLISHED:
-                return Response({"detail": "Messages are closed because this journey is no longer active."}, status=status.HTTP_409_CONFLICT)
+            if not _booking_messages_open(booking):
+                return Response({"detail": "Messages are closed because the booking is inactive or the journey has departed."}, status=status.HTTP_409_CONFLICT)
 
             message = BookingMessage.objects.create(
                 booking=booking,
