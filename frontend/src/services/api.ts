@@ -66,7 +66,7 @@ export async function apiRequest<T>(
   authenticated = false,
 ): Promise<T> {
   const headers = new Headers(options.headers);
-  if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (authenticated && accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
   let response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
