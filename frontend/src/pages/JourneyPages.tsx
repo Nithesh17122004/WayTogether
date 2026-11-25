@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowRight, BadgeCheck, CalendarDays, CarFront, Check, Clock3,
+  ArrowRight, BadgeCheck, CalendarDays, CarFront, Clock3,
   FileCheck2, MapPin, Plus, RefreshCw, Search, ShieldCheck, Users,
   XCircle,
 } from "lucide-react";
@@ -333,7 +333,7 @@ export function MyJourneysContent() {
     catch(err){setError(err instanceof Error?err.message:"Journey could not be cancelled.");}
     finally{setBusyId(null);}
   };
-  return <main className="wt-page"><div className="wt-container wt-market-page">
+  return <div className="wt-market-dashboard-page"><div className="wt-container wt-market-page">
     <div className="wt-breadcrumb"><Link to="/">Home</Link><span>›</span><Link to="/dashboard/driver">Driver workspace</Link><span>›</span> My journeys</div>
     <div className="wt-page-heading"><div><span className="wt-eyebrow">DRIVER WORKSPACE</span><h1>My journeys.</h1><p>Manage drafts and published journeys you've planned.</p></div><Link to="/publish" className="wt-btn wt-btn-primary"><Plus size={15}/> Create journey</Link></div>
     {error&&<PageNotice kind="error">{error}</PageNotice>}{notice&&<PageNotice kind="success">{notice}</PageNotice>}
@@ -344,5 +344,5 @@ export function MyJourneysContent() {
         <p><CalendarDays size={13}/>{readableDate(journey.travel_date)} · {journey.departure_time.slice(0,5)} · {journey.seats_offered} seats</p>
         <div className="wt-my-journey-actions"><Link to={"/journeys/"+journey.id} className="wt-text-link">View details</Link>{journey.status==="draft"&&<button className="wt-btn wt-btn-primary" disabled={busyId===journey.id} onClick={()=>publish(journey.id)}>Publish <ArrowRight size={14}/></button>}{(journey.status==="draft"||journey.status==="published")&&<button className="wt-btn wt-btn-outline" disabled={busyId===journey.id} onClick={()=>cancel(journey.id)}><XCircle size={14}/> Cancel</button>}</div>
       </article>)}</div>}
-  </div></main>;
+  </div></div>;
 }
