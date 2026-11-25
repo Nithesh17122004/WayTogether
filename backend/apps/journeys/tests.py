@@ -272,6 +272,33 @@ class JourneyApiTests(APITestCase):
         self.assertEqual(no_seats.status_code, status.HTTP_200_OK)
         self.assertEqual(no_seats.data, [])
 
+    def test_search_can_match_a_journey_segment_using_intermediate_stops(self):
+        driver, _ = self.create_driver(approved=True)
+        vehicle = self.create_vehicle(driver, approved=True)
+        self.create_approved_documents(driver, vehicle)
+        travel_date = timezone.localdate() + timedelta(days=4)
+        journey = self.create_published_journey(driver, vehicle, travel_date)
+        JourneyStop.objects.create(
+            journey=journey, sequence=1, location_name="Vellore, Tamil Nadu",
+            latitude=Decimal("12.9165000"), longitude=Decimal("79.1325000"),
+        )
+        JourneyStop.objects.create(
+            journey=journey, sequence=2, location_name="Hosur, Tamil Nadu",
+            latitude=Decimal("12.7409000"), longitude=Decimal("77.8253000"),
+        )
+        response = self.client.get("/api/v1/journeys/", {
+            "origin_lat": "12.9165",
+            "origin_lon": "79.1325",
+            "destination_lat": "12.7409",
+            "destination_lon": "77.8253",
+            "date": travel_date.isoformat(),
+            "seats": "1",
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["matched_origin_name"], "Vellore, Tamil Nadu")
+        self.assertEqual(response.data[0]["matched_destination_name"], "Hosur, Tamil Nadu")
+
     def test_published_journey_is_public_but_draft_is_private(self):
         driver, _ = self.create_driver()
         vehicle = self.create_vehicle(driver)
