@@ -13,14 +13,21 @@ class JourneyStopSerializer(serializers.ModelSerializer):
         fields = ("id", "sequence", "location_name", "latitude", "longitude")
         read_only_fields = ("id", "sequence")
 
+    def validate(self, attrs):
+        latitude = attrs.get("latitude")
+        longitude = attrs.get("longitude")
+        if latitude is not None and not Decimal("-90") <= latitude <= Decimal("90"):
+            raise serializers.ValidationError({"latitude": "Latitude must be between -90 and 90."})
+        if longitude is not None and not Decimal("-180") <= longitude <= Decimal("180"):
+            raise serializers.ValidationError({"longitude": "Longitude must be between -180 and 180."})
+        return attrs
+
 
 class JourneySerializer(serializers.ModelSerializer):
     vehicle = serializers.PrimaryKeyRelatedField(queryset=Vehicle.objects.all(), write_only=True)
     vehicle_details = serializers.SerializerMethodField()
     driver_name = serializers.CharField(source="driver.display_name", read_only=True)
-    driver_verification_status = serializers.CharField(
-        source="driver.driver_profile.verification_status", read_only=True
-    )
+    driver_verification_status = serializers.SerializerMethodField()
     stops = JourneyStopSerializer(many=True, required=False)
     estimated_total_expenses = serializers.DecimalField(
         max_digits=10, decimal_places=2, read_only=True
@@ -53,6 +60,10 @@ class JourneySerializer(serializers.ModelSerializer):
             "origin_match_distance_km", "destination_match_distance_km",
         )
 
+    def get_driver_verification_status(self, obj):
+        profile = getattr(obj.driver, "driver_profile", None)
+        return profile.verification_status if profile else None
+
     def get_vehicle_details(self, obj):
         return {
             "registration_number": obj.vehicle.registration_number,
@@ -69,6 +80,10 @@ class JourneySerializer(serializers.ModelSerializer):
         return getattr(obj, "_destination_match_distance_km", None)
 
     def validate(self, attrs):
+        stops = attrs.get("stops")
+        if stops is not None and len(stops) > 4:
+            raise serializers.ValidationError({"stops": "A journey can have up to four intermediate stops."})
+
         instance = self.instance
         travel_date = attrs.get("travel_date", getattr(instance, "travel_date", None))
         if travel_date and travel_date < timezone.localdate():
