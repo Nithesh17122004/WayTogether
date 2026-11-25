@@ -655,3 +655,6 @@
   .wt-detail-stats { grid-template-columns:1fr; }
   .wt-market-empty { padding:34px 14px; }
 }
+
+.wt-journey-map { position:relative; }
+.wt-map-missing-tiles { position:absolute; z-index:500; left:10px; top:10px; max-width:240px; padding:8px 10px; border:1px solid rgba(151,170,220,.2); border-radius:7px; color:#d1d8ef; background:rgba(8,13,32,.9); font-size:8px; line-height:1.5; pointer-events:none; }
