@@ -60,7 +60,7 @@ python manage.py runserver
 
 Health endpoint: http://127.0.0.1:8000/api/v1/health/
 
-The website now supports API-backed driver KYC, vehicle verification, journey publishing/search, passenger booking requests, driver approvals and seat availability/cancellation management. Final eligible-expense settlements and fake sandbox payment/refund simulation are implemented in Phase 7. Live payments, driver payouts, messaging and live tracking are not implemented.
+The website now supports API-backed driver KYC, vehicle verification, journey publishing/search, passenger booking requests, driver approvals and seat availability/cancellation management. Final eligible-expense settlements and fake sandbox payment/refund simulation are implemented in Phase 7. Phase 8 adds private booking messages, in-app notifications, emergency-contact storage, safety reporting and post-journey reviews. Live payments, driver payouts, external notifications and live tracking remain disabled or out of scope.
 
 ## Development phases
 
@@ -71,7 +71,7 @@ The website now supports API-backed driver KYC, vehicle verification, journey pu
 5. Journey publishing and search — implemented in Phase 5
 6. Booking and journey management — implemented in Phase 6
 7. Payments and financial management — expense settlement and sandbox simulation implemented; live payments remain disabled
-8. Communication, safety and trust
+8. Communication, safety and trust — implemented in Phase 8
 9. Admin panel and analytics
 10. Testing, security and deployment
 
