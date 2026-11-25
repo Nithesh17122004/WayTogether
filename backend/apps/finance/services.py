@@ -7,6 +7,8 @@ from rest_framework.exceptions import APIException, PermissionDenied, Validation
 
 from apps.bookings.models import Booking
 from apps.journeys.models import Journey
+from apps.trust.models import Notification
+from apps.trust.services import notify
 
 from .models import ExpenseSettlement, PassengerContribution, SandboxPayment, SandboxRefund
 
@@ -106,6 +108,15 @@ def finalize_expense_settlement(*, journey_id, driver, data):
             seat_count=booking.seats_requested,
             per_seat_amount=per_seat,
             total_amount=Decimal(amount).quantize(Decimal("0.01")),
+        )
+        notify(
+            recipient=booking.passenger,
+            actor=driver,
+            event_type=Notification.EventType.EXPENSE_FINALIZED,
+            title="Final expense contribution available",
+            body="The driver finalized this journey's eligible expenses. Your contribution is ready to review.",
+            booking=booking,
+            journey=journey,
         )
 
     journey.status = Journey.Status.COMPLETED
