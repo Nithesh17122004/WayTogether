@@ -1,3 +1,4 @@
+import "./phase2.css";
 import { useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownUp, ArrowRight, ArrowUpRight, BadgeCheck, Bell, CalendarDays,
