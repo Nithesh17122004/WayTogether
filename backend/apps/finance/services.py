@@ -1,4 +1,4 @@
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import transaction
@@ -86,7 +86,7 @@ def finalize_expense_settlement(*, journey_id, driver, data):
         finalized_at=timezone.now(),
     )
     for booking in bookings:
-        amount = (per_person_paise * booking.seats_requested) / 100
+        amount = (Decimal(per_person_paise * booking.seats_requested) / Decimal("100")).quantize(Decimal("0.01"))
         PassengerContribution.objects.create(
             booking=booking,
             settlement=settlement,
