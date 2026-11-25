@@ -39,6 +39,8 @@ class JourneySerializer(serializers.ModelSerializer):
     destination_match_distance_km = serializers.SerializerMethodField()
     matched_origin_name = serializers.SerializerMethodField()
     matched_destination_name = serializers.SerializerMethodField()
+    confirmed_seats = serializers.SerializerMethodField()
+    available_seats = serializers.SerializerMethodField()
 
     class Meta:
         model = Journey
@@ -54,6 +56,7 @@ class JourneySerializer(serializers.ModelSerializer):
             "independently_planned", "expenses_only", "status", "published_at",
             "created_at", "updated_at", "origin_match_distance_km",
             "destination_match_distance_km", "matched_origin_name", "matched_destination_name",
+            "confirmed_seats", "available_seats",
         )
         read_only_fields = (
             "id", "driver_name", "driver_verification_status", "vehicle_details",
@@ -86,6 +89,15 @@ class JourneySerializer(serializers.ModelSerializer):
 
     def get_matched_destination_name(self, obj):
         return getattr(obj, "_matched_destination_name", None)
+
+    def get_confirmed_seats(self, obj):
+        if hasattr(obj, "_confirmed_bookings"):
+            return sum(item.seats_requested for item in obj._confirmed_bookings)
+        from apps.bookings.services import confirmed_seat_count
+        return confirmed_seat_count(obj)
+
+    def get_available_seats(self, obj):
+        return max(0, obj.seats_offered - self.get_confirmed_seats(obj))
 
     def validate(self, attrs):
         stops = attrs.get("stops")
