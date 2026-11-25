@@ -1,5 +1,6 @@
 import "./phase2.css";
 import { apiRequest, downloadPrivateFile, setAuthTokens } from "./services/api";
+import { JourneyDetailContent, JourneyPublishContent, JourneySearchContent, MyJourneysContent } from "./pages/JourneyPages";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownUp, ArrowRight, ArrowUpRight, BadgeCheck, Bell, CalendarDays,
@@ -8,20 +9,8 @@ import {
   Settings, ShieldCheck, SlidersHorizontal, Sparkles, Star, Users, X,
 } from "lucide-react";
 import {
-  BrowserRouter, Link, NavLink, Route, Routes, useNavigate, useParams, useSearchParams,
+  BrowserRouter, Link, NavLink, Route, Routes, useNavigate,
 } from "react-router-dom";
-
-type Journey = {
-  id: string; from: string; to: string; date: string; time: string; seats: number;
-  contribution: string; driver: string; initials: string; rating: string; vehicle: string;
-  duration: string; verified: boolean;
-};
-
-const demoJourneys: Journey[] = [
-  { id: "wt-001", from: "Chennai", to: "Bengaluru", date: "Sample date", time: "7:30 AM", seats: 2, contribution: "₹420", driver: "Arun Kumar", initials: "AK", rating: "4.9", vehicle: "Sedan · Honda City", duration: "6 hr 15 min", verified: true },
-  { id: "wt-002", from: "Coimbatore", to: "Kochi", date: "Sample date", time: "9:00 AM", seats: 3, contribution: "₹280", driver: "Meera R", initials: "MR", rating: "5.0", vehicle: "Hatchback · Hyundai i20", duration: "3 hr 10 min", verified: true },
-  { id: "wt-003", from: "Hyderabad", to: "Vijayawada", date: "Sample date", time: "6:45 AM", seats: 1, contribution: "₹350", driver: "Rahul S", initials: "RS", rating: "4.8", vehicle: "SUV · Kia Seltos", duration: "5 hr 20 min", verified: false },
-];
 
 function Brand() {
   return <Link className="wt-brand" to="/" aria-label="WayTogether home"><span className="wt-brand-mark">W</span><span>Way<span>Together</span></span></Link>;
@@ -84,41 +73,15 @@ function HomePage() {
   </main></PublicLayout>;
 }
 
-function JourneyCard({ journey }: { journey: Journey }) {
-  return <article className="wt-journey-card"><div className="wt-card-top"><span><CalendarDays size={14}/>{journey.date}</span><span className="wt-sample-tag">SAMPLE</span></div><div className="wt-journey-route"><div><b>{journey.time}</b><small>Departure</small></div><div className="wt-route-line"><i/><span/><i/></div><div><b>{journey.duration}</b><small>Estimated journey</small></div></div><div className="wt-journey-cities"><b>{journey.from}</b><ArrowRight size={15}/><b>{journey.to}</b></div><div className="wt-driver-row"><span className="wt-driver-avatar">{journey.initials}</span><span className="wt-driver-info"><b>{journey.driver}</b><small>{journey.verified?<><BadgeCheck size={12}/> Verification preview</>:"Verification pending preview"}</small></span><span className="wt-rating"><Star size={13} fill="currentColor"/>{journey.rating}</span></div><div className="wt-journey-bottom"><span><Users size={14}/>{journey.seats} seats</span><span><CarFront size={14}/>{journey.vehicle}</span><b>{journey.contribution}<small>Expense contribution preview</small></b></div><Link to={`/journeys/${journey.id}`} className="wt-card-link">View journey details <ArrowRight size={15}/></Link></article>;
-}
-
 function SearchPage() {
-  const [params] = useSearchParams(); const [from,setFrom] = useState(params.get("from")??""); const [to,setTo] = useState(params.get("to")??""); const [date,setDate] = useState(params.get("date")??""); const [sort,setSort] = useState("recommended"); const [verifiedOnly,setVerifiedOnly] = useState(false); const [notice,setNotice] = useState("");
-  const items = [...demoJourneys].filter(j=>!verifiedOnly||j.verified).sort((a,b)=>sort==="contribution"?Number(a.contribution.replace(/\D/g,""))-Number(b.contribution.replace(/\D/g,"")):0);
-  return <PublicLayout><main className="wt-page"><div className="wt-container"><div className="wt-breadcrumb"><Link to="/">Home</Link><ChevronRight size={13}/> Explore journeys</div><div className="wt-page-heading"><div><Eyebrow>FIND A JOURNEY</Eyebrow><h1>Going somewhere?</h1><p>Find people travelling along the same route.</p></div><PreviewLabel/></div><div className="wt-search-panel wt-results-search"><form className="wt-search-form" onSubmit={e=>{e.preventDefault();setNotice("Filters updated in this design preview. Live journey matching will be connected to the marketplace API.");}}><label className="wt-field"><span><MapPin size={14}/> From</span><input value={from} onChange={e=>setFrom(e.target.value)} placeholder="Starting point"/></label><button type="button" className="wt-swap" onClick={()=>{setFrom(to);setTo(from);}} aria-label="Swap locations"><ArrowDownUp size={17}/></button><label className="wt-field"><span><MapPin size={14}/> To</span><input value={to} onChange={e=>setTo(e.target.value)} placeholder="Destination"/></label><label className="wt-field"><span><CalendarDays size={14}/> Date</span><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label><button className="wt-btn wt-btn-primary wt-search-submit"><Search size={16}/> Update search</button></form>{notice&&<p className="wt-inline-notice">{notice}</p>}</div><div className="wt-results-toolbar"><div><b>Example journeys</b><span>Sample listings for layout preview · not bookable</span></div><div className="wt-results-controls"><label className="wt-check"><input type="checkbox" checked={verifiedOnly} onChange={e=>setVerifiedOnly(e.target.checked)}/> Verified preview only</label><label className="wt-sort"><SlidersHorizontal size={15}/><select value={sort} onChange={e=>setSort(e.target.value)}><option value="recommended">Recommended</option><option value="contribution">Lowest contribution</option></select></label></div></div><div className="wt-results-grid">{items.map(j=><JourneyCard key={j.id} journey={j}/>)}</div><div className="wt-empty-api"><Sparkles size={18}/><div><b>Live journeys will appear here</b><p>These examples demonstrate the listing layout. Search, matching and seat availability will be connected to the backend in later phases.</p></div></div></div></main></PublicLayout>;
+  return <PublicLayout><JourneySearchContent/></PublicLayout>;
 }
-
 function JourneyDetailPage() {
-  const { id } = useParams(); const journey = demoJourneys.find(j=>j.id===id)??demoJourneys[0]; const [notice,setNotice] = useState("");
-  return <PublicLayout><main className="wt-page"><div className="wt-container wt-detail-wrap"><div className="wt-breadcrumb"><Link to="/">Home</Link><ChevronRight size={13}/><Link to="/search">Explore journeys</Link><ChevronRight size={13}/> Journey preview</div><div className="wt-page-heading"><div><Eyebrow>JOURNEY DETAILS</Eyebrow><h1>{journey.from} <span className="wt-gradient-arrow">→</span> {journey.to}</h1><p>Review the details of a sample independently planned journey.</p></div><PreviewLabel/></div><div className="wt-detail-grid"><section className="wt-panel wt-detail-main"><div className="wt-detail-alert"><Sparkles size={17}/><span><b>Sample journey preview</b><small>Illustrative information only. This is not an available ride or verified driver listing.</small></span></div><div className="wt-detail-stats"><div><CalendarDays/><small>Travel date</small><b>{journey.date}</b></div><div><Clock3/><small>Departure</small><b>{journey.time}</b></div><div><Users/><small>Seats available</small><b>{journey.seats} seats</b></div></div><h3>Journey route</h3><div className="wt-route-map-preview"><div className="wt-map-street s1"/><div className="wt-map-street s2"/><div className="wt-map-street s3"/><div className="wt-map-route"><span/><i/><span/></div><div className="wt-map-origin"><b>{journey.from}</b><small>Starting point</small></div><div className="wt-map-destination"><b>{journey.to}</b><small>Destination</small></div><span className="wt-map-caption">Map preview · routing integration pending</span></div><h3>Journey notes</h3><p className="wt-body-copy">The driver has independently planned this journey. Passenger contributions are intended to share eligible journey expenses, not generate driver profit. Full route and stop details will appear when journey publishing is connected.</p><div className="wt-detail-driver"><span className="wt-driver-avatar large">{journey.initials}</span><div><b>{journey.driver}</b><small><BadgeCheck size={13}/> Sample profile · verification is not confirmed</small></div><span className="wt-rating"><Star size={13} fill="currentColor"/>{journey.rating} sample</span></div></section><aside className="wt-panel wt-booking-panel"><Eyebrow>EXPENSE CONTRIBUTION</Eyebrow><strong className="wt-big-price">{journey.contribution}</strong><small className="wt-muted">Illustrative per-passenger amount</small><div className="wt-summary-line"><span>Estimated journey</span><b>{journey.duration}</b></div><div className="wt-summary-line"><span>Vehicle</span><b>{journey.vehicle}</b></div><div className="wt-summary-line"><span>Seats available</span><b>{journey.seats}</b></div><div className="wt-notice-box">Final expense-sharing calculation and booking rules are subject to product policy and legal review.</div><button className="wt-btn wt-btn-primary wt-full" onClick={()=>setNotice("Booking is not enabled in this prototype. Booking requests will be connected in Phase 6.")}>Request to join <ArrowRight size={16}/></button>{notice&&<p className="wt-inline-notice">{notice}</p>}<p className="wt-secure-note"><ShieldCheck size={14}/> No payment is taken in this preview.</p></aside></div></div></main></PublicLayout>;
+  return <PublicLayout><JourneyDetailContent/></PublicLayout>;
 }
-
 function PublishPage() {
-  const [attest,setAttest] = useState(false); const [notice,setNotice] = useState("");
-  const submit=(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();setNotice(attest?"Your draft has been checked in this UI preview. Publishing will be enabled after driver verification and backend integration.":"Please confirm that this journey was independently planned.");};
-  return <PublicLayout><main className="wt-page"><div className="wt-container wt-form-page"><div className="wt-breadcrumb"><Link to="/">Home</Link><ChevronRight size={13}/> Share a journey</div><div className="wt-page-heading"><div><Eyebrow>FOR PEOPLE WITH A SEAT TO SHARE</Eyebrow><h1>Share the journey you're taking.</h1><p>Tell fellow travellers about a journey you already planned.</p></div><PreviewLabel/></div><div className="wt-form-layout"><form className="wt-panel wt-form-card" onSubmit={submit}><div className="wt-form-section"><h3><span>01</span> Your route</h3><div className="wt-form-grid"><label className="wt-field"><span>Starting point</span><input placeholder="City, area or landmark" required/></label><label className="wt-field"><span>Destination</span><input placeholder="Where are you headed?" required/></label><label className="wt-field wt-span-2"><span>Intermediate stops <small>(optional)</small></span><input placeholder="Add a stop along your route"/></label></div></div><div className="wt-form-section"><h3><span>02</span> Journey schedule</h3><div className="wt-form-grid"><label className="wt-field"><span>Travel date</span><input type="date" required/></label><label className="wt-field"><span>Departure time</span><input type="time" required/></label><label className="wt-field"><span>Available passenger seats</span><select defaultValue="2"><option value="1">1 seat</option><option value="2">2 seats</option><option value="3">3 seats</option><option value="4">4 seats</option></select></label><label className="wt-field"><span>Vehicle</span><select defaultValue="" required><option value="" disabled>Select a verified vehicle</option><option value="pending">Vehicle selection after verification</option></select></label></div></div><div className="wt-form-section"><h3><span>03</span> Expense-sharing details</h3><div className="wt-info-callout"><ShieldCheck size={19}/><p>Contributions are intended only for a reasonable share of eligible journey expenses. This is not a fare-setting tool.</p></div><label className="wt-field"><span>Estimated contribution per passenger (₹)</span><input type="number" min="0" placeholder="Subject to the approved expense-sharing policy"/></label></div><div className="wt-attestation"><label><input type="checkbox" checked={attest} onChange={e=>setAttest(e.target.checked)}/><span><b>I independently planned this journey.</b><small>I confirm I would make this journey even if no passengers booked seats. The trip is not being created to generate income from passenger transport.</small></span></label></div><button className="wt-btn wt-btn-primary wt-btn-large" type="submit">Review journey draft <ArrowRight size={17}/></button>{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}</form><aside className="wt-panel wt-side-guide"><div className="wt-guide-icon"><ShieldCheck size={26}/></div><h3>Before you share</h3><ul><li><Check/> Plan your journey independently.</li><li><Check/> Share only eligible journey expenses.</li><li><Check/> Keep driver and vehicle details accurate.</li><li><Check/> Follow community and safety rules.</li></ul><div className="wt-guide-foot">Driver verification and journey publishing are not active in this prototype.</div></aside></div></div></main></PublicLayout>;
+  return <PublicLayout><JourneyPublishContent/></PublicLayout>;
 }
-
-type AuthMode = "login" | "register";
-type VerificationChannel = "email" | "phone";
-type RegisterResult = {
-  detail: string;
-  user: { email: string; phone: string; role: string };
-  verification: { email: string; phone: string };
-  delivery_notes?: Record<string, string>;
-};
-type LoginResult = {
-  access: string;
-  refresh: string;
-  user: { role: "passenger" | "driver" | "admin"; display_name: string };
-};
-
 function AuthPage({ mode }: { mode: AuthMode }) {
   const navigate = useNavigate();
   const isRegister = mode === "register";
@@ -243,7 +206,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
 const passengerMenu=[{label:"Overview",to:"/dashboard/passenger",icon:LayoutDashboard},{label:"My bookings",to:"/dashboard/passenger",icon:CalendarDays},{label:"Messages",to:"/dashboard/passenger",icon:MessageCircle},{label:"Saved journeys",to:"/dashboard/passenger",icon:Compass},{label:"Profile",to:"/dashboard/passenger",icon:Settings}];
 function DashboardLayout({role,children}:{role:"Passenger"|"Driver"|"Admin";children:ReactNode}) {
   const [open,setOpen]=useState(false);
-  const links=role==="Driver"?[{label:"Overview",to:"/dashboard/driver",icon:LayoutDashboard},{label:"My journeys",to:"/dashboard/driver",icon:CarFront},{label:"Booking requests",to:"/dashboard/driver",icon:Users},{label:"Vehicle & documents",to:"/driver/verification",icon:FileCheck2},{label:"Profile",to:"/dashboard/driver",icon:Settings}]:role==="Admin"?[{label:"Overview",to:"/admin",icon:LayoutDashboard},{label:"Users",to:"/admin",icon:Users},{label:"Verification queue",to:"/admin/verification",icon:FileCheck2},{label:"Journeys",to:"/admin",icon:CarFront},{label:"Reports",to:"/admin",icon:ShieldCheck}]:passengerMenu;
+  const links=role==="Driver"?[{label:"Overview",to:"/dashboard/driver",icon:LayoutDashboard},{label:"My journeys",to:"/dashboard/driver/journeys",icon:CarFront},{label:"Booking requests",to:"/dashboard/driver",icon:Users},{label:"Vehicle & documents",to:"/driver/verification",icon:FileCheck2},{label:"Profile",to:"/dashboard/driver",icon:Settings}]:role==="Admin"?[{label:"Overview",to:"/admin",icon:LayoutDashboard},{label:"Users",to:"/admin",icon:Users},{label:"Verification queue",to:"/admin/verification",icon:FileCheck2},{label:"Journeys",to:"/admin",icon:CarFront},{label:"Reports",to:"/admin",icon:ShieldCheck}]:passengerMenu;
   return <div className="wt-dashboard"><aside className={open?"wt-sidebar is-open":"wt-sidebar"}><div className="wt-sidebar-brand"><Brand/><button onClick={()=>setOpen(false)} aria-label="Close menu"><X/></button></div><div className="wt-side-label">{role} workspace</div><nav>{links.map(item=>{const Icon=item.icon;return <NavLink key={item.label} to={item.to} end className={({isActive})=>isActive?"active":""} onClick={()=>setOpen(false)}><Icon size={17}/>{item.label}</NavLink>;})}</nav><div className="wt-sidebar-bottom"><Link to="/"><Compass size={16}/> View public website</Link><Link to="/login"><LogOut size={16}/> Sign out preview</Link></div></aside><div className="wt-dashboard-main"><header className="wt-dashboard-top"><button className="wt-dash-menu" onClick={()=>setOpen(true)} aria-label="Open dashboard menu"><Menu/></button><div className="wt-dash-top-title"><span>WayTogether / {role}</span><b>{role} dashboard</b></div><div className="wt-dash-top-actions"><button aria-label="Help"><CircleHelp/></button><button aria-label="Notifications"><Bell/></button><span className="wt-small-user">{role==="Driver"?"AK":role==="Admin"?"AD":"MR"}</span></div></header><main className="wt-dashboard-content">{children}</main></div></div>;
 }
 
@@ -476,7 +439,7 @@ export default function Phase2App() {
   return <BrowserRouter><Routes>
     <Route path="/" element={<HomePage/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/journeys/:id" element={<JourneyDetailPage/>}/><Route path="/publish" element={<PublishPage/>}/>
     <Route path="/login" element={<AuthPage mode="login"/>}/><Route path="/register" element={<AuthPage mode="register"/>}/>
-    <Route path="/dashboard/passenger" element={<PassengerDashboard/>}/><Route path="/dashboard/driver" element={<DriverDashboard/>}/><Route path="/driver/verification" element={<DriverVerificationPage/>}/><Route path="/admin" element={<AdminDashboard/>}/><Route path="/admin/verification" element={<AdminVerificationPage/>}/>
+    <Route path="/dashboard/passenger" element={<PassengerDashboard/>}/><Route path="/dashboard/driver" element={<DriverDashboard/>}/><Route path="/dashboard/driver/journeys" element={<DashboardLayout role="Driver"><MyJourneysContent/></DashboardLayout>}/><Route path="/driver/verification" element={<DriverVerificationPage/>}/><Route path="/admin" element={<AdminDashboard/>}/><Route path="/admin/verification" element={<AdminVerificationPage/>}/>
     <Route path="*" element={<NotFound/>}/>
   </Routes></BrowserRouter>;
 }
