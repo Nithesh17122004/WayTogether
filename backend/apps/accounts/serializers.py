@@ -58,6 +58,10 @@ class RegisterSerializer(serializers.Serializer):
         if len(name) < 2:
             raise serializers.ValidationError({"full_name": "Enter your full name."})
         attrs["full_name"] = name
+        if attrs["role"] == User.Role.DRIVER and not attrs.get("phone"):
+            raise serializers.ValidationError({
+                "phone": "Drivers must provide a contact number for passengers after a confirmed, paid booking. Phone OTP verification is not required."
+            })
         candidate = User(email=attrs["email"], phone=attrs.get("phone"), first_name=name)
         try:
             password_validation.validate_password(attrs["password"], user=candidate)
