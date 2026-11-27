@@ -143,7 +143,7 @@ class PassengerVerification(models.Model):
         null=True,
         blank=True,
     )
-    submitted_at = models.DateTimeField(auto_now=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
