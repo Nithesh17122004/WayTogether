@@ -277,7 +277,7 @@ class AdminPassengerVerificationReviewView(APIView):
             verification.review_note = serializer.validated_data.get("review_note", "").strip()
             verification.reviewed_by = request.user
             verification.reviewed_at = timezone.now()
-            verification.save(update_fields=["status", "review_note", "reviewed_by", "reviewed_at", "submitted_at"])
+            verification.save(update_fields=["status", "review_note", "reviewed_by", "reviewed_at"])
 
         return Response({
             "detail": f"Passenger identity verification {decision}.",
