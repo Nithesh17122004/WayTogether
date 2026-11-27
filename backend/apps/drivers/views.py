@@ -1,5 +1,7 @@
 import mimetypes
 
+from django.conf import settings
+
 from django.db import transaction
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
@@ -34,6 +36,11 @@ class DriverProfileView(APIView):
         return Response(DriverProfileSerializer(self.get_profile(request), context={"request": request}).data)
 
     def post(self, request):
+        if "profile_photo" in request.data and not settings.PRIVATE_MEDIA_STORAGE_READY:
+            return Response(
+                {"detail": "Driver photo upload is disabled until private persistent file storage is configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         profile = self.get_profile(request)
         serializer = DriverProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -41,6 +48,11 @@ class DriverProfileView(APIView):
         return Response(DriverProfileSerializer(profile, context={"request": request}).data)
 
     def patch(self, request):
+        if "profile_photo" in request.data and not settings.PRIVATE_MEDIA_STORAGE_READY:
+            return Response(
+                {"detail": "Driver photo upload is disabled until private persistent file storage is configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         profile = self.get_profile(request)
         serializer = DriverProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -72,6 +84,14 @@ class VerificationDocumentListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsDriverAccount]
     serializer_class = VerificationDocumentSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def create(self, request, *args, **kwargs):
+        if not settings.PRIVATE_MEDIA_STORAGE_READY:
+            return Response(
+                {"detail": "Driver document uploads are disabled until private persistent file storage is configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return super().create(request, *args, **kwargs)
 
     def get_queryset(self):
         return (
