@@ -34,9 +34,9 @@ services:
           type: keyvalue
           property: connectionString
       - key: CORS_ALLOWED_ORIGINS
-        value: https://waytogether-web-azfy.onrender.com
+        value: https://waytogether-web-azfy.onrender.com,https://waytogether.aclclouds.online
       - key: CSRF_TRUSTED_ORIGINS
-        value: https://waytogether-web-azfy.onrender.com,https://waytogether-api-t8vs.onrender.com
+        value: https://waytogether-web-azfy.onrender.com,https://waytogether.aclclouds.online,https://waytogether-api-t8vs.onrender.com,https://api.waytogether.aclclouds.online
       - key: DJANGO_SECURE_SSL_REDIRECT
         value: "true"
       - key: DJANGO_SECURE_PROXY_SSL_HEADER
