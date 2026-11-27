@@ -23,7 +23,7 @@ services:
       - key: PYTHON_VERSION
         value: "3.11.11"
       - key: DJANGO_ALLOWED_HOSTS
-        value: waytogether-api-t8vs.onrender.com
+        value: waytogether-api-t8vs.onrender.com,api.waytogether.aclclouds.online
       - key: DATABASE_URL
         fromDatabase:
           name: waytogether-db
