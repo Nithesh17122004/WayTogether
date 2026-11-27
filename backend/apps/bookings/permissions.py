@@ -12,7 +12,6 @@ class IsVerifiedPassenger(BasePermission):
             and user.is_active
             and user.role == "passenger"
             and user.is_email_verified
-            and user.is_phone_verified
         )
 
 
@@ -27,5 +26,4 @@ class IsVerifiedDriver(BasePermission):
             and user.is_active
             and user.role == "driver"
             and user.is_email_verified
-            and user.is_phone_verified
         )
