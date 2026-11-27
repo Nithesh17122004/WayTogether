@@ -5,6 +5,7 @@ from django.core import mail
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
+from unittest.mock import Mock, patch
 
 from .models import User, VerificationCode
 from .services import issue_verification_code, verify_code
@@ -225,3 +226,51 @@ class VerificationServiceTests(TestCase):
         self.assertNotEqual(record.code_hash, "000000")
         with self.assertRaises(ValueError):
             issue_verification_code(self.user, VerificationCode.Channel.EMAIL)
+
+
+
+@override_settings(
+    EMAIL_PROVIDER="resend",
+    RESEND_API_KEY="re_test_waytogether",
+    RESEND_FROM_EMAIL="WayTogether <no-reply@waytogether.aclclouds.online>",
+)
+class ResendEmailDeliveryTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="resend-recipient@example.com",
+            password="A-Strong-Unique-Password-928!",
+        )
+
+    @patch("apps.accounts.services.requests.post")
+    def test_verification_email_uses_resend_https_api(self, post):
+        response = Mock()
+        response.raise_for_status = Mock()
+        post.return_value = response
+
+        record = issue_verification_code(self.user, VerificationCode.Channel.EMAIL)
+
+        self.assertIsNotNone(record)
+        post.assert_called_once()
+        args, kwargs = post.call_args
+        self.assertEqual(args[0], "https://api.resend.com/emails")
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer re_test_waytogether")
+        self.assertEqual(kwargs["json"]["from"], "WayTogether <no-reply@waytogether.aclclouds.online>")
+        self.assertEqual(kwargs["json"]["to"], [self.user.email])
+        self.assertIn("verification code is", kwargs["json"]["text"])
+        self.assertEqual(kwargs["timeout"], (5, 20))
+
+    @patch("apps.accounts.services.requests.post")
+    def test_failed_resend_request_removes_unusable_otp_record(self, post):
+        import requests
+        post.side_effect = requests.Timeout("test timeout")
+
+        with self.assertRaises(RuntimeError):
+            issue_verification_code(self.user, VerificationCode.Channel.EMAIL)
+
+        self.assertFalse(
+            VerificationCode.objects.filter(
+                user=self.user,
+                channel=VerificationCode.Channel.EMAIL,
+                verified_at__isnull=True,
+            ).exists()
+        )
