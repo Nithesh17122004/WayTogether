@@ -21,7 +21,9 @@ services:
       - key: DJANGO_DEBUG
         value: "false"
       - key: DJANGO_SECRET_KEY
-        generateValue: true
+        value: "JpLldkbSi2NRzh8btWc-hhJ2JPTlzrNxrH_b6w0YpzdRLUP1ipGBRDDWwRQ9XJs-cbknw-rJq4--UnPlt6Fd4w"
+      - key: PYTHON_VERSION
+        value: "3.11.11"
       - key: DJANGO_ALLOWED_HOSTS
         value: waytogether-api-t8vs.onrender.com
       - key: DATABASE_URL
