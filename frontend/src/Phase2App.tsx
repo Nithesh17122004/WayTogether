@@ -218,7 +218,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   </div></main></PublicLayout>;
 }
 
-const passengerMenu=[{label:"Overview",to:"/dashboard/passenger",icon:LayoutDashboard},{label:"My bookings",to:"/dashboard/passenger/bookings",icon:CalendarDays},{label:"Expense contributions",to:"/dashboard/passenger/finance",icon:Wallet},{label:"Messages",to:"/dashboard/passenger/messages",icon:MessageCircle},{label:"Notifications",to:"/dashboard/passenger/notifications",icon:Bell},{label:"Safety centre",to:"/dashboard/passenger/safety",icon:ShieldCheck},{label:"Reviews",to:"/dashboard/passenger/reviews",icon:Star},{label:"Saved journeys",to:"/dashboard/passenger",icon:Compass},{label:"Profile",to:"/dashboard/passenger",icon:Settings}];
+const passengerMenu=[{label:"Overview",to:"/dashboard/passenger",icon:LayoutDashboard},{label:"Identity verification",to:"/dashboard/passenger/verification",icon:FileCheck2},{label:"My bookings",to:"/dashboard/passenger/bookings",icon:CalendarDays},{label:"Expense contributions",to:"/dashboard/passenger/finance",icon:Wallet},{label:"Messages",to:"/dashboard/passenger/messages",icon:MessageCircle},{label:"Notifications",to:"/dashboard/passenger/notifications",icon:Bell},{label:"Safety centre",to:"/dashboard/passenger/safety",icon:ShieldCheck},{label:"Reviews",to:"/dashboard/passenger/reviews",icon:Star},{label:"Saved journeys",to:"/dashboard/passenger",icon:Compass},{label:"Profile",to:"/dashboard/passenger",icon:Settings}];
 function DashboardLayout({role,children}:{role:"Passenger"|"Driver"|"Admin";children:ReactNode}) {
   const [open,setOpen]=useState(false);
   const [authorised,setAuthorised]=useState(false);
@@ -235,12 +235,13 @@ function DashboardLayout({role,children}:{role:"Passenger"|"Driver"|"Admin";chil
     return()=>{active=false;};
   },[role,navigate]);
   const signOut=async()=>{await logoutCurrentSession();navigate("/login",{replace:true});};
-  const links=role==="Driver"?[{label:"Overview",to:"/dashboard/driver",icon:LayoutDashboard},{label:"My journeys",to:"/dashboard/driver/journeys",icon:CarFront},{label:"Booking requests",to:"/dashboard/driver/bookings",icon:Users},{label:"Expense records",to:"/dashboard/driver/finance",icon:Wallet},{label:"Messages",to:"/dashboard/driver/messages",icon:MessageCircle},{label:"Notifications",to:"/dashboard/driver/notifications",icon:Bell},{label:"Safety centre",to:"/dashboard/driver/safety",icon:ShieldCheck},{label:"Reviews",to:"/dashboard/driver/reviews",icon:Star},{label:"Vehicle & documents",to:"/driver/verification",icon:FileCheck2},{label:"Profile",to:"/dashboard/driver",icon:Settings}]:role==="Admin"?[{label:"Overview",to:"/admin",icon:LayoutDashboard},{label:"Users",to:"/admin/users",icon:Users},{label:"Verification queue",to:"/admin/verification",icon:FileCheck2},{label:"Journeys",to:"/admin/journeys",icon:CarFront},{label:"Bookings",to:"/admin/bookings",icon:CalendarDays},{label:"Expense ledger",to:"/admin/finance",icon:Wallet},{label:"Safety reports",to:"/admin/safety",icon:ShieldCheck}]:passengerMenu;
+  const links=role==="Driver"?[{label:"Overview",to:"/dashboard/driver",icon:LayoutDashboard},{label:"My journeys",to:"/dashboard/driver/journeys",icon:CarFront},{label:"Booking requests",to:"/dashboard/driver/bookings",icon:Users},{label:"Expense records",to:"/dashboard/driver/finance",icon:Wallet},{label:"Messages",to:"/dashboard/driver/messages",icon:MessageCircle},{label:"Notifications",to:"/dashboard/driver/notifications",icon:Bell},{label:"Safety centre",to:"/dashboard/driver/safety",icon:ShieldCheck},{label:"Reviews",to:"/dashboard/driver/reviews",icon:Star},{label:"Vehicle & documents",to:"/driver/verification",icon:FileCheck2},{label:"Profile",to:"/dashboard/driver",icon:Settings}]:role==="Admin"?[{label:"Overview",to:"/admin",icon:LayoutDashboard},{label:"Users",to:"/admin/users",icon:Users},{label:"Driver documents",to:"/admin/verification",icon:FileCheck2},{label:"Passenger identity",to:"/admin/passenger-verification",icon:ShieldCheck},{label:"Journeys",to:"/admin/journeys",icon:CarFront},{label:"Bookings",to:"/admin/bookings",icon:CalendarDays},{label:"Expense ledger",to:"/admin/finance",icon:Wallet},{label:"Safety reports",to:"/admin/safety",icon:ShieldCheck}]:passengerMenu;
   if(!authorised)return <main className="wt-auth-wait" role="status">Checking your account access…</main>;
   return <div className="wt-dashboard"><aside className={open?"wt-sidebar is-open":"wt-sidebar"}><div className="wt-sidebar-brand"><Brand/><button onClick={()=>setOpen(false)} aria-label="Close menu"><X/></button></div><div className="wt-side-label">{role} workspace</div><nav>{links.map(item=>{const Icon=item.icon;return <NavLink key={item.label} to={item.to} end className={({isActive})=>isActive?"active":""} onClick={()=>setOpen(false)}><Icon size={17}/>{item.label}</NavLink>;})}</nav><div className="wt-sidebar-bottom"><Link to="/"><Compass size={16}/> View public website</Link><button type="button" onClick={()=>void signOut()}><LogOut size={16}/> Sign out</button></div></aside><div className="wt-dashboard-main"><header className="wt-dashboard-top"><button className="wt-dash-menu" onClick={()=>setOpen(true)} aria-label="Open dashboard menu"><Menu/></button><div className="wt-dash-top-title"><span>WayTogether / {role}</span><b>{role} dashboard</b></div><div className="wt-dash-top-actions"><button aria-label="Help"><CircleHelp/></button><Link to={role==="Driver"?"/dashboard/driver/notifications":role==="Passenger"?"/dashboard/passenger/notifications":"/admin"} aria-label="Notifications"><Bell/></Link><span className="wt-small-user">{role==="Driver"?"AK":role==="Admin"?"AD":"MR"}</span></div></header><main className="wt-dashboard-content">{children}</main></div></div>;
 }
 
 type DriverProfileRecord = {
+  driver_photo_url: string | null;
   verification_status: string;
   verification_status_display: string;
   city: string;
@@ -270,6 +271,144 @@ const documentLabels: Record<string,string> = {
 function StatusPill({status}:{status:string}) {
   const tone = status === "approved" ? "approved" : status === "rejected" || status === "needs_resubmission" ? "rejected" : "pending";
   return <span className={"wt-review-pill " + tone}>{status.replaceAll("_"," ")}</span>;
+}
+
+
+type PassengerKycStatus = {
+  status: string;
+  review_note?: string;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
+};
+
+type AdminPassengerKycRecord = {
+  id: number;
+  owner_email: string;
+  owner_name: string;
+  masked_aadhaar_file_name: string;
+  passenger_photo_file_name: string;
+  consent_at: string;
+  status: string;
+  review_note: string;
+  submitted_at: string;
+};
+
+function PassengerVerificationPage() {
+  const [verification,setVerification] = useState<PassengerKycStatus>({status:"not_submitted"});
+  const [aadhaarFile,setAadhaarFile] = useState<File|null>(null);
+  const [photoFile,setPhotoFile] = useState<File|null>(null);
+  const [consent,setConsent] = useState(false);
+  const [loading,setLoading] = useState(true);
+  const [busy,setBusy] = useState(false);
+  const [error,setError] = useState("");
+  const [notice,setNotice] = useState("");
+
+  const load = async () => {
+    setLoading(true); setError("");
+    try {
+      setVerification(await apiRequest<PassengerKycStatus>("/auth/passenger-verification/",{},true));
+    } catch(err) {
+      setError(err instanceof Error?err.message:"Could not load passenger identity status.");
+    } finally { setLoading(false); }
+  };
+  useEffect(()=>{void load();},[]);
+
+  const submit = async (event:FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if(!aadhaarFile||!photoFile||!consent) {
+      setError("Choose both documents and accept the identity-verification consent.");
+      return;
+    }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const body = new FormData();
+      body.append("masked_aadhaar_document",aadhaarFile);
+      body.append("passenger_photo",photoFile);
+      body.append("consent","true");
+      const result = await apiRequest<{detail:string;verification:PassengerKycStatus}>(
+        "/auth/passenger-verification/",
+        {method:"POST",body},
+        true,
+      );
+      setVerification(result.verification);
+      setNotice(result.detail);
+      setAadhaarFile(null); setPhotoFile(null); setConsent(false);
+      const a = document.getElementById("wt-passenger-aadhaar") as HTMLInputElement|null;
+      const p = document.getElementById("wt-passenger-photo") as HTMLInputElement|null;
+      if(a)a.value=""; if(p)p.value="";
+    } catch(err) { setError(err instanceof Error?err.message:"Could not submit verification."); }
+    finally { setBusy(false); }
+  };
+
+  return <DashboardLayout role="Passenger">
+    <div className="wt-dash-heading"><div><Eyebrow>PASSENGER IDENTITY</Eyebrow><h1>Verify your passenger profile.</h1><p>Submit your identity proof and a clear profile photo for manual review.</p></div><StatusPill status={verification.status}/></div>
+    <div className="wt-verification-intro"><ShieldCheck/><div><b>Private manual verification</b><small>Files are private and available only to you and authorised administrators. Do not upload a full unmasked Aadhaar number or biometric data.</small></div><StatusPill status={verification.status}/></div>
+    {error&&<p className="wt-auth-error" role="alert">{error}</p>}{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
+    {loading?<div className="wt-panel wt-verification-loading">Loading your verification status…</div>:<>
+      {verification.review_note&&<div className="wt-market-notice info">Administrator note: {verification.review_note}</div>}
+      <section className="wt-panel wt-verification-card">
+        <div className="wt-panel-heading"><div><h2>Identity documents</h2><p>Submit a masked Aadhaar copy and a recent face photo.</p></div><StatusPill status={verification.status}/></div>
+        <form className="wt-document-form" onSubmit={submit}>
+          <label className="wt-field wt-file-field"><span>Masked Aadhaar proof (PDF, JPG or PNG)</span><input id="wt-passenger-aadhaar" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>setAadhaarFile(e.target.files?.[0]??null)} required/><small>{aadhaarFile?.name??"Upload a copy with the first eight Aadhaar digits hidden"}</small></label>
+          <label className="wt-field wt-file-field"><span>Passenger photo (JPG or PNG)</span><input id="wt-passenger-photo" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={e=>setPhotoFile(e.target.files?.[0]??null)} required/><small>{photoFile?.name??"Upload a recent, clear face photo"}</small></label>
+          <label className="wt-private-attest"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>I consent to WayTogether using these documents for passenger identity verification, restricting access to authorised reviewers, and retaining them only as required for this verification purpose.</span></label>
+          <button className="wt-btn wt-btn-primary" disabled={busy||!consent}>{busy?"Submitting…":"Submit for manual verification"} <ArrowRight size={15}/></button>
+        </form>
+        <p className="wt-legal-small">Only upload a masked Aadhaar document with the first eight digits redacted. Never enter a 12-digit Aadhaar number into the app. You can resubmit if a reviewer rejects the documents.</p>
+      </section>
+    </>}
+  </DashboardLayout>;
+}
+
+function AdminPassengerVerificationPage() {
+  const [queue,setQueue] = useState<AdminPassengerKycRecord[]>([]);
+  const [loading,setLoading] = useState(true);
+  const [busyId,setBusyId] = useState<number|null>(null);
+  const [notes,setNotes] = useState<Record<number,string>>({});
+  const [error,setError] = useState("");
+  const [notice,setNotice] = useState("");
+
+  const load = async () => {
+    setLoading(true); setError("");
+    try {
+      setQueue(await apiRequest<AdminPassengerKycRecord[]>("/auth/admin/passenger-verification/queue/",{},true));
+    } catch(err) { setError(err instanceof Error?err.message:"Administrator access is required."); }
+    finally { setLoading(false); }
+  };
+  useEffect(()=>{void load();},[]);
+
+  const review = async (item:AdminPassengerKycRecord,decision:"approved"|"rejected") => {
+    const reviewNote=notes[item.id]??"";
+    if(decision==="rejected"&&!reviewNote.trim()){setError("Add a rejection reason before rejecting a passenger.");return;}
+    setBusyId(item.id);setError("");setNotice("");
+    try {
+      const result=await apiRequest<{detail:string}>("/auth/admin/passenger-verification/"+item.id+"/review/",{
+        method:"POST",body:JSON.stringify({decision,review_note:reviewNote}),
+      },true);
+      setNotice(result.detail);await load();
+    } catch(err) {setError(err instanceof Error?err.message:"Could not review this passenger.");}
+    finally {setBusyId(null);}
+  };
+
+  return <DashboardLayout role="Admin">
+    <div className="wt-dash-heading"><div><Eyebrow>ADMINISTRATOR · PASSENGER IDENTITY</Eyebrow><h1>Passenger verification queue.</h1><p>Review masked Aadhaar proof and profile photos before allowing seat bookings.</p></div><span className="wt-staff-label">STAFF ONLY · PRIVATE KYC</span></div>
+    {error&&<p className="wt-auth-error" role="alert">{error}</p>}{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
+    <div className="wt-verification-intro"><ShieldCheck/><div><b>Restricted personal data</b><small>Open these files only for the review. Do not copy or share Aadhaar data outside the verification purpose.</small></div><span className="wt-queue-count">{queue.length} pending</span></div>
+    <section className="wt-panel wt-admin-queue">
+      <div className="wt-panel-heading"><div><h2>Pending passengers</h2><p>Approve only after checking the masked document and matching photo.</p></div><button className="wt-btn wt-btn-outline" type="button" onClick={load}>Refresh</button></div>
+      {loading?<p className="wt-queue-empty">Loading passenger queue…</p>:queue.length===0?<div className="wt-queue-empty"><Check/><b>No pending passengers</b><small>New submissions will appear here.</small></div>:queue.map(item=><article className="wt-admin-document" key={item.id}>
+        <div className="wt-admin-document-head"><span className="wt-doc-icon"><FileCheck2/></span><div><b>{item.owner_name}</b><small>{item.owner_email}</small></div><StatusPill status={item.status}/></div>
+        <div className="wt-admin-document-meta"><span>Aadhaar file: <b>{item.masked_aadhaar_file_name}</b></span><span>Photo: <b>{item.passenger_photo_file_name}</b></span><span>Consent: <b>{new Date(item.consent_at).toLocaleString("en-IN")}</b></span></div>
+        <div className="wt-admin-review-actions">
+          <button className="wt-link-button" type="button" onClick={async()=>{try{await downloadPrivateFile("/auth/passenger-verification/"+item.id+"/download/aadhaar/",item.masked_aadhaar_file_name);}catch(err){setError(err instanceof Error?err.message:"Private download failed.");}}}>Download masked Aadhaar</button>
+          <button className="wt-link-button" type="button" onClick={async()=>{try{await downloadPrivateFile("/auth/passenger-verification/"+item.id+"/download/photo/",item.passenger_photo_file_name);}catch(err){setError(err instanceof Error?err.message:"Private download failed.");}}}>Download photo</button>
+          <input value={notes[item.id]??""} onChange={e=>setNotes(n=>({...n,[item.id]:e.target.value}))} placeholder="Rejection reason (required to reject)"/>
+          <button className="wt-btn wt-btn-outline" disabled={busyId===item.id} onClick={()=>review(item,"rejected")}>Reject</button>
+          <button className="wt-btn wt-btn-primary" disabled={busyId===item.id} onClick={()=>review(item,"approved")}>Approve <Check size={14}/></button>
+        </div>
+      </article>)}
+    </section>
+  </DashboardLayout>;
 }
 
 function DriverVerificationPage() {
@@ -373,10 +512,11 @@ function DriverVerificationPage() {
     {loading ? <div className="wt-panel wt-verification-loading">Loading your verification details…</div> : <>
       <section className="wt-panel wt-verification-card">
         <div className="wt-panel-heading"><div><h2>Driver profile</h2><p>Basic information used for driver verification.</p></div><StatusPill status={profile?.verification_status ?? "draft"}/></div>
-        <form className="wt-profile-fields" onSubmit={async e=>{e.preventDefault();setBusy(true);try{const fd=new FormData(e.currentTarget);const data=await apiRequest<DriverProfileRecord>("/drivers/profile/",{method:"PATCH",body:JSON.stringify({city:fd.get("city"),state:fd.get("state"),bio:fd.get("bio")})},true);setProfile(data);setNotice("Driver profile saved.");}catch(err){setError(err instanceof Error?err.message:"Could not save profile.");}finally{setBusy(false);}}}>
+        <form className="wt-profile-fields" onSubmit={async e=>{e.preventDefault();setBusy(true);setError("");try{const fd=new FormData(e.currentTarget);const body=new FormData();body.append("city",String(fd.get("city")??""));body.append("state",String(fd.get("state")??""));body.append("bio",String(fd.get("bio")??""));const photo=fd.get("profile_photo");if(photo instanceof File&&photo.size>0)body.append("profile_photo",photo);const data=await apiRequest<DriverProfileRecord>("/drivers/profile/",{method:"PATCH",body},true);setProfile(data);setNotice("Driver profile saved.");const input=document.getElementById("wt-driver-profile-photo") as HTMLInputElement|null;if(input)input.value="";}catch(err){setError(err instanceof Error?err.message:"Could not save profile.");}finally{setBusy(false);}}}>
           <label className="wt-field"><span>City</span><input name="city" defaultValue={profile?.city ?? ""} placeholder="Your city"/></label>
           <label className="wt-field"><span>State</span><input name="state" defaultValue={profile?.state ?? ""} placeholder="Your state"/></label>
           <label className="wt-field wt-span-2"><span>Short driver introduction</span><input name="bio" defaultValue={profile?.bio ?? ""} maxLength={500} placeholder="A brief introduction for fellow travellers"/></label>
+          <div className="wt-field wt-span-2"><span>Driver profile photo</span>{profile?.driver_photo_url&&<img className="wt-driver-photo-preview" src={profile.driver_photo_url} alt="Your public driver profile"/>}<input id="wt-driver-profile-photo" name="profile_photo" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png"/><small>This photo is shown on your published rides. JPG or PNG, maximum 5 MB.</small></div>
           <button className="wt-btn wt-btn-outline" disabled={busy}>Save profile</button>
         </form>
       </section>
@@ -475,7 +615,7 @@ export default function Phase2App() {
   return <BrowserRouter><Routes>
     <Route path="/" element={<HomePage/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/journeys/:id" element={<JourneyDetailPage/>}/><Route path="/publish" element={<PublishPage/>}/>
     <Route path="/login" element={<AuthPage mode="login"/>}/><Route path="/register" element={<AuthPage mode="register"/>}/>
-    <Route path="/dashboard/passenger" element={<PassengerDashboard/>}/><Route path="/dashboard/passenger/bookings" element={<DashboardLayout role="Passenger"><PassengerBookingsContent/></DashboardLayout>}/><Route path="/dashboard/passenger/finance" element={<DashboardLayout role="Passenger"><PassengerFinanceContent/></DashboardLayout>}/><Route path="/dashboard/passenger/messages" element={<DashboardLayout role="Passenger"><MessagesContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/notifications" element={<DashboardLayout role="Passenger"><NotificationCenterContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/safety" element={<DashboardLayout role="Passenger"><SafetyCenterContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/reviews" element={<DashboardLayout role="Passenger"><JourneyReviewsContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/driver" element={<DriverDashboard/>}/><Route path="/dashboard/driver/bookings" element={<DashboardLayout role="Driver"><DriverBookingRequestsContent/></DashboardLayout>}/><Route path="/dashboard/driver/finance" element={<DashboardLayout role="Driver"><DriverFinanceContent/></DashboardLayout>}/><Route path="/dashboard/driver/messages" element={<DashboardLayout role="Driver"><MessagesContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/notifications" element={<DashboardLayout role="Driver"><NotificationCenterContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/safety" element={<DashboardLayout role="Driver"><SafetyCenterContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/reviews" element={<DashboardLayout role="Driver"><JourneyReviewsContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/journeys" element={<DashboardLayout role="Driver"><MyJourneysContent/></DashboardLayout>}/><Route path="/driver/verification" element={<DriverVerificationPage/>}/><Route path="/admin" element={<AdminDashboard/>}/><Route path="/admin/users" element={<DashboardLayout role="Admin"><AdminUsersContent/></DashboardLayout>}/><Route path="/admin/verification" element={<AdminVerificationPage/>}/><Route path="/admin/journeys" element={<DashboardLayout role="Admin"><AdminJourneysContent/></DashboardLayout>}/><Route path="/admin/bookings" element={<DashboardLayout role="Admin"><AdminBookingsContent/></DashboardLayout>}/><Route path="/admin/finance" element={<DashboardLayout role="Admin"><AdminExpenseLedgerContent/></DashboardLayout>}/><Route path="/admin/safety" element={<DashboardLayout role="Admin"><AdminSafetyReportsContent/></DashboardLayout>}/>
+    <Route path="/dashboard/passenger" element={<PassengerDashboard/>}/><Route path="/dashboard/passenger/verification" element={<PassengerVerificationPage/>}/><Route path="/dashboard/passenger/bookings" element={<DashboardLayout role="Passenger"><PassengerBookingsContent/></DashboardLayout>}/><Route path="/dashboard/passenger/finance" element={<DashboardLayout role="Passenger"><PassengerFinanceContent/></DashboardLayout>}/><Route path="/dashboard/passenger/messages" element={<DashboardLayout role="Passenger"><MessagesContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/notifications" element={<DashboardLayout role="Passenger"><NotificationCenterContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/safety" element={<DashboardLayout role="Passenger"><SafetyCenterContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/reviews" element={<DashboardLayout role="Passenger"><JourneyReviewsContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/driver" element={<DriverDashboard/>}/><Route path="/dashboard/driver/bookings" element={<DashboardLayout role="Driver"><DriverBookingRequestsContent/></DashboardLayout>}/><Route path="/dashboard/driver/finance" element={<DashboardLayout role="Driver"><DriverFinanceContent/></DashboardLayout>}/><Route path="/dashboard/driver/messages" element={<DashboardLayout role="Driver"><MessagesContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/notifications" element={<DashboardLayout role="Driver"><NotificationCenterContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/safety" element={<DashboardLayout role="Driver"><SafetyCenterContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/reviews" element={<DashboardLayout role="Driver"><JourneyReviewsContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/journeys" element={<DashboardLayout role="Driver"><MyJourneysContent/></DashboardLayout>}/><Route path="/driver/verification" element={<DriverVerificationPage/>}/><Route path="/admin" element={<AdminDashboard/>}/><Route path="/admin/users" element={<DashboardLayout role="Admin"><AdminUsersContent/></DashboardLayout>}/><Route path="/admin/verification" element={<AdminVerificationPage/>}/><Route path="/admin/passenger-verification" element={<AdminPassengerVerificationPage/>}/><Route path="/admin/journeys" element={<DashboardLayout role="Admin"><AdminJourneysContent/></DashboardLayout>}/><Route path="/admin/bookings" element={<DashboardLayout role="Admin"><AdminBookingsContent/></DashboardLayout>}/><Route path="/admin/finance" element={<DashboardLayout role="Admin"><AdminExpenseLedgerContent/></DashboardLayout>}/><Route path="/admin/safety" element={<DashboardLayout role="Admin"><AdminSafetyReportsContent/></DashboardLayout>}/>
     <Route path="*" element={<NotFound/>}/>
   </Routes></BrowserRouter>;
 }
