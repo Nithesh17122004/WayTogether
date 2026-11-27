@@ -14,7 +14,7 @@ services:
     branch: main
     rootDir: backend
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
-    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     healthCheckPath: /api/v1/health/
     autoDeploy: true
     envVars:
@@ -23,15 +23,15 @@ services:
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DJANGO_ALLOWED_HOSTS
-        value: waytogether-api.onrender.com
+        value: waytogether-api-t8vs.onrender.com
       - key: DATABASE_URL
         fromDatabase:
           name: waytogether-db
           property: connectionString
       - key: CORS_ALLOWED_ORIGINS
-        value: https://waytogether-web.onrender.com
+        value: https://waytogether-web-azfy.onrender.com
       - key: CSRF_TRUSTED_ORIGINS
-        value: https://waytogether-web.onrender.com,https://waytogether-api.onrender.com
+        value: https://waytogether-web-azfy.onrender.com,https://waytogether-api-t8vs.onrender.com
       - key: DJANGO_SECURE_SSL_REDIRECT
         value: "true"
       - key: DJANGO_SECURE_PROXY_SSL_HEADER
@@ -69,4 +69,4 @@ services:
     autoDeploy: true
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://waytogether-api.onrender.com/api/v1
+        value: https://waytogether-api-t8vs.onrender.com/api/v1
