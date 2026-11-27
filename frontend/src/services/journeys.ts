@@ -132,8 +132,6 @@ export async function previewRoute(
       destination_lat: String(destination.latitude),
       destination_lon: String(destination.longitude),
     }),
-    {},
-    true,
   );
 }
 

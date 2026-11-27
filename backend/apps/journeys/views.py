@@ -95,7 +95,9 @@ class LocationSearchView(APIView):
 
 
 class RoutePreviewView(APIView):
-    permission_classes = [IsAuthenticated, IsVerifiedDriver]
+    # A route preview is public, read-only map data; publishing remains restricted
+    # to authenticated verified drivers in JourneyPublishView.
+    permission_classes = [AllowAny]
     throttle_scope = "route_preview"
 
     def get(self, request):

@@ -70,6 +70,31 @@ export function JourneySearchContent() {
   const [searched,setSearched] = useState(false);
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
+  const [routePreview,setRoutePreview] = useState<RoutePreview|null>(null);
+  const [routeBusy,setRouteBusy] = useState(false);
+  const [routeError,setRouteError] = useState("");
+
+  const buildSearchRoutePreview = async () => {
+    if(!origin||!destination) {
+      setRouteError("Select both locations before previewing the route.");
+      return;
+    }
+    if(origin.latitude===destination.latitude&&origin.longitude===destination.longitude) {
+      setRouteError("Choose two different locations to preview a route.");
+      return;
+    }
+    setRouteBusy(true);
+    setRouteError("");
+    try {
+      const preview = await previewRoute(origin,destination);
+      setRoutePreview(preview);
+    } catch(err) {
+      setRoutePreview(null);
+      setRouteError(err instanceof Error?err.message:"Road route preview is temporarily unavailable.");
+    } finally {
+      setRouteBusy(false);
+    }
+  };
 
   const submit = async (event:FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -94,15 +119,32 @@ export function JourneySearchContent() {
     <div className="wt-page-heading"><div><span className="wt-eyebrow">LIVE JOURNEY SEARCH</span><h1>Find people going your way.</h1><p>Search independently planned journeys and share eligible travel expenses.</p></div><span className="wt-live-status"><i/> Live marketplace API</span></div>
     <form className="wt-panel wt-market-search-form" onSubmit={submit}>
       <div className="wt-market-fields">
-        <LocationPicker label="Leaving from" placeholder="Search a city or landmark" value={origin} onChange={setOrigin} initialQuery={searchParams.get("from") || ""}/>
-        <LocationPicker label="Going to" placeholder="Search your destination" value={destination} onChange={setDestination} initialQuery={searchParams.get("to") || ""}/>
+        <LocationPicker label="Leaving from" placeholder="Search a city or landmark" value={origin} onChange={value=>{setOrigin(value);setRoutePreview(null);setRouteError("");}} initialQuery={searchParams.get("from") || ""}/>
+        <LocationPicker label="Going to" placeholder="Search your destination" value={destination} onChange={value=>{setDestination(value);setRoutePreview(null);setRouteError("");}} initialQuery={searchParams.get("to") || ""}/>
         <label className="wt-field"><span><CalendarDays size={14}/> Travel date</span><input type="date" min={todayLocal()} value={date} onChange={e=>setDate(e.target.value)} required/></label>
         <label className="wt-field"><span><Users size={14}/> Passenger seats</span><select value={seats} onChange={e=>setSeats(e.target.value)}>{[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>{n} {n===1?"seat":"seats"}</option>)}</select></label>
         <label className="wt-field"><span><MapPin size={14}/> Match radius</span><select value={radius} onChange={e=>setRadius(e.target.value)}><option value="10">Within 10 km</option><option value="25">Within 25 km</option><option value="50">Within 50 km</option><option value="100">Within 100 km</option></select></label>
       </div>
       <button className="wt-btn wt-btn-primary wt-market-submit" disabled={busy}>{busy?<RefreshCw size={16} className="wt-spin"/>:<Search size={16}/>} {busy?"Searching journeys":"Find journeys"}</button>
-      <p className="wt-market-help"><ShieldCheck size={13}/> Locations are searched when you press Find. Search is not an autocomplete service.</p>
+      <p className="wt-market-help"><ShieldCheck size={13}/> Search and select a result for both locations. You can preview the road route before checking journey availability.</p>
     </form>
+    <div className="wt-route-preview-actions wt-search-route-preview-actions">
+      <button type="button" className="wt-btn wt-btn-outline" onClick={()=>void buildSearchRoutePreview()} disabled={routeBusy||!origin||!destination}>
+        {routeBusy?<RefreshCw size={16} className="wt-spin"/>:<MapPin size={16}/>} {routeBusy?"Building route preview":"Preview travel route"}
+      </button>
+      <span>Shows the estimated driving distance and time between your selected locations.</span>
+    </div>
+    {routeError&&<PageNotice kind="error">{routeError}</PageNotice>}
+    {routePreview&&origin&&destination&&<section className="wt-search-route-card" aria-label="Travel route preview">
+      <div className="wt-search-route-heading"><div><b>Travel preview</b><small>{origin.name} to {destination.name}</small></div><span className="wt-route-preview-badge"><Check size={13}/> Route ready</span></div>
+      <JourneyMap
+        origin={{latitude:origin.latitude,longitude:origin.longitude,label:origin.name}}
+        destination={{latitude:destination.latitude,longitude:destination.longitude,label:destination.name}}
+        geometry={routePreview.geometry}
+        height={310}
+      />
+      <div className="wt-route-stats"><span><MapPin size={15}/>{routePreview.distance_km} km by road</span><span><Clock3 size={15}/>{displayDuration(routePreview.duration_minutes)} estimated driving time</span></div>
+    </section>}
     {error&&<PageNotice kind="error">{error}</PageNotice>}
     {searched&&!busy&&<div className="wt-market-results-heading"><div><h2>{results.length?results.length+" matching journeys":"No matching journeys yet"}</h2><p>{origin?.name} to {destination?.name} · {readableDate(date)} · {seats} seat(s)</p></div><span>Sorted by route proximity</span></div>}
     {busy&&<div className="wt-market-empty"><RefreshCw className="wt-spin"/><b>Finding journeys near your route…</b></div>}

@@ -39,11 +39,13 @@ export default function JourneyMap({
     (origin.latitude + destination.latitude) / 2,
     (origin.longitude + destination.longitude) / 2,
   ];
-  const tileUrl = import.meta.env.VITE_OSM_TILE_URL || (import.meta.env.DEV ? "https://tile.openstreetmap.org/{z}/{x}/{y}.png" : "");
-  const tileAttribution = import.meta.env.VITE_OSM_TILE_ATTRIBUTION || "&copy; OpenStreetMap contributors";
+  // Use OSM tiles by default in production too; keep the provider configurable
+  // so a dedicated tile service can replace it as traffic grows.
+  const tileUrl = import.meta.env.VITE_OSM_TILE_URL || "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const tileAttribution = import.meta.env.VITE_OSM_TILE_ATTRIBUTION || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
   return <div className="wt-journey-map" style={{height}} aria-label="Journey map">
-    <MapContainer center={center} zoom={6} scrollWheelZoom={false} style={{height:"100%",width:"100%"}}>
+    <MapContainer center={center} zoom={6} maxZoom={19} scrollWheelZoom={false} style={{height:"100%",width:"100%"}}>
       {tileUrl && <TileLayer attribution={tileAttribution} url={tileUrl}/>}
 
       <FitJourney points={positions.length ? positions : points}/>
