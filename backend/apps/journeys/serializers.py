@@ -27,6 +27,7 @@ class JourneySerializer(serializers.ModelSerializer):
     vehicle = serializers.PrimaryKeyRelatedField(queryset=Vehicle.objects.all(), write_only=True)
     vehicle_details = serializers.SerializerMethodField()
     driver_name = serializers.CharField(source="driver.display_name", read_only=True)
+    driver_photo_url = serializers.SerializerMethodField()
     driver_verification_status = serializers.SerializerMethodField()
     stops = JourneyStopSerializer(many=True, required=False)
     estimated_total_expenses = serializers.DecimalField(
@@ -45,7 +46,7 @@ class JourneySerializer(serializers.ModelSerializer):
     class Meta:
         model = Journey
         fields = (
-            "id", "driver_name", "driver_verification_status", "vehicle", "vehicle_details",
+            "id", "driver_name", "driver_photo_url", "driver_verification_status", "vehicle", "vehicle_details",
             "origin_name", "origin_latitude", "origin_longitude",
             "destination_name", "destination_latitude", "destination_longitude",
             "travel_date", "departure_time", "seats_offered",
@@ -59,7 +60,7 @@ class JourneySerializer(serializers.ModelSerializer):
             "confirmed_seats", "available_seats",
         )
         read_only_fields = (
-            "id", "driver_name", "driver_verification_status", "vehicle_details",
+            "id", "driver_name", "driver_photo_url", "driver_verification_status", "vehicle_details",
             "estimated_total_expenses", "estimated_contribution_per_passenger",
             "status", "published_at", "created_at", "updated_at",
             "origin_match_distance_km", "destination_match_distance_km",
@@ -70,13 +71,25 @@ class JourneySerializer(serializers.ModelSerializer):
         return profile.verification_status if profile else None
 
     def get_vehicle_details(self, obj):
+        # Public rides show the vehicle category and capacity only. Registration
+        # plates and detailed vehicle identity are reserved for a later,
+        # authenticated post-payment contact flow.
         return {
-            "registration_number": obj.vehicle.registration_number,
-            "make": obj.vehicle.make,
-            "model": obj.vehicle.model,
-            "vehicle_type": obj.vehicle.vehicle_type,
+            "vehicle_type": obj.vehicle.get_vehicle_type_display(),
             "passenger_seats": obj.vehicle.passenger_seats,
         }
+
+    def get_driver_photo_url(self, obj):
+        profile = getattr(obj.driver, "driver_profile", None)
+        if not profile or not profile.profile_photo:
+            return None
+        request = self.context.get("request")
+        if not request:
+            return None
+        from django.urls import reverse
+        return request.build_absolute_uri(
+            reverse("driver-public-photo", kwargs={"driver_id": obj.driver_id})
+        )
 
     def get_origin_match_distance_km(self, obj):
         return getattr(obj, "_origin_match_distance_km", None)
