@@ -1,6 +1,8 @@
 import secrets
 from datetime import timedelta
 
+import requests
+
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
@@ -47,19 +49,43 @@ def issue_verification_code(user, channel):
     )
 
     if channel == VerificationCode.Channel.EMAIL:
+        subject = "Verify your WayTogether email"
+        message = (
+            f"Your WayTogether verification code is {code}. "
+            f"It expires in {OTP_TTL_MINUTES} minutes. "
+            "If you did not request this code, you can ignore this email."
+        )
         try:
-            send_mail(
-                subject="Verify your WayTogether email",
-                message=(
-                    f"Your WayTogether verification code is {code}. "
-                    f"It expires in {OTP_TTL_MINUTES} minutes. "
-                    "If you did not request this code, you can ignore this email."
-                ),
-                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-                recipient_list=[user.email],
-                fail_silently=False,
-            )
+            if settings.EMAIL_PROVIDER == "resend":
+                if not settings.RESEND_API_KEY or not settings.RESEND_FROM_EMAIL:
+                    raise RuntimeError("Resend email delivery is not configured on the server.")
+
+                response = requests.post(
+                    settings.RESEND_API_URL,
+                    headers={
+                        "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "from": settings.RESEND_FROM_EMAIL,
+                        "to": [user.email],
+                        "subject": subject,
+                        "text": message,
+                        "tags": [{"name": "category", "value": "verification"}],
+                    },
+                    timeout=(5, 20),
+                )
+                response.raise_for_status()
+            else:
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                    recipient_list=[user.email],
+                    fail_silently=False,
+                )
         except Exception:
+            # Do not leave a valid OTP record behind when the email provider rejects delivery.
             record.delete()
             raise
     return record
