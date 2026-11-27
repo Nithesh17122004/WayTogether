@@ -22,5 +22,5 @@ class IsVerifiedDriver(BasePermission):
         return bool(
             user and user.is_authenticated and user.is_active
             and user.role == "driver"
-            and user.is_email_verified and user.is_phone_verified
+            and user.is_email_verified
         )
