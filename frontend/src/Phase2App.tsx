@@ -87,16 +87,20 @@ function PublishPage() {
   return <PublicLayout><JourneyPublishContent/></PublicLayout>;
 }
 type AuthMode = "login" | "register";
+type AuthRole = "passenger" | "driver" | "admin";
 type RegisterResult = {
   detail: string;
-  user: { email: string; phone: string | null; role: string };
+  access: string;
+  refresh: string;
+  user: { email: string; phone: string | null; role: AuthRole; is_email_verified: boolean };
   verification: { email: string };
+  email_verification_required: boolean;
   delivery_notes?: Record<string,string>;
 };
 type LoginResult = {
   access: string;
   refresh: string;
-  user: { role: "passenger" | "driver" | "admin"; display_name: string };
+  user: { email: string; role: AuthRole; display_name: string; is_email_verified: boolean };
 };
 
 function AuthPage({ mode }: { mode: AuthMode }) {
@@ -108,6 +112,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"passenger" | "driver">("passenger");
+  const [pendingRole, setPendingRole] = useState<AuthRole>("passenger");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [emailCode, setEmailCode] = useState("");
   const [emailVerified, setEmailVerified] = useState(false);
@@ -136,8 +141,12 @@ function AuthPage({ mode }: { mode: AuthMode }) {
           accepted_terms: acceptedTerms,
         }),
       });
+      setAuthTokens({ access: result.access, refresh: result.refresh });
+      setPendingRole(result.user.role);
       setStage("verify");
-      setNotice(result.delivery_notes?.email ? result.detail + " " + result.delivery_notes.email : result.detail);
+      setNotice(result.delivery_notes?.email
+        ? result.detail + " " + result.delivery_notes.email
+        : result.detail);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
     } finally {
@@ -154,7 +163,15 @@ function AuthPage({ mode }: { mode: AuthMode }) {
         body: JSON.stringify({ email: email.trim().toLowerCase(), code: emailCode }),
       });
       setEmailVerified(true);
-      setNotice(result.detail + (result.can_sign_in ? " You can now sign in." : ""));
+      setNotice(result.detail + " Opening your dashboard…");
+      if (result.can_sign_in) {
+        const destination = pendingRole === "admin"
+          ? "/admin"
+          : pendingRole === "driver"
+            ? "/dashboard/driver"
+            : "/dashboard/passenger";
+        navigate(destination, { replace: true });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Email verification failed. Request a new code.");
     } finally {
@@ -186,8 +203,19 @@ function AuthPage({ mode }: { mode: AuthMode }) {
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       setAuthTokens({ access: result.access, refresh: result.refresh });
-      const destination = result.user.role === "admin" ? "/admin" : result.user.role === "driver" ? "/dashboard/driver" : "/dashboard/passenger";
-      navigate(destination);
+      setPendingRole(result.user.role);
+      if (!result.user.is_email_verified) {
+        setStage("verify");
+        setEmail(result.user.email);
+        setNotice("You are signed in. Verify your Gmail OTP to unlock bookings and ride publishing.");
+        return;
+      }
+      const destination = result.user.role === "admin"
+        ? "/admin"
+        : result.user.role === "driver"
+          ? "/dashboard/driver"
+          : "/dashboard/passenger";
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed. Check your details and try again.");
     } finally {
@@ -197,12 +225,12 @@ function AuthPage({ mode }: { mode: AuthMode }) {
 
   return <PublicLayout><main className="wt-auth-page"><div className="wt-auth-shell">
     <div className="wt-auth-brand"><Brand/><Eyebrow>YOUR JOURNEY, CONNECTED</Eyebrow><h1>{isRegister ? "Start with a shared direction." : "Welcome back."}</h1><p>{isRegister ? "Create your WayTogether account and discover a more connected way to travel." : "Sign in to continue your WayTogether journey."}</p><div className="wt-auth-benefit"><ShieldCheck/><span><b>Thoughtful travel starts with trust.</b><small>Designed around independently planned journeys and transparent expense sharing.</small></span></div></div>
-    {isRegister && stage === "verify" ? <section className="wt-panel wt-auth-card">
-      <Eyebrow>VERIFY YOUR EMAIL</Eyebrow><h2>One more step.</h2><p>Enter the six-digit code sent to {email}.</p>
+    {stage === "verify" ? <section className="wt-panel wt-auth-card">
+      <Eyebrow>EMAIL VERIFICATION</Eyebrow><h2>{isRegister ? "Your account is ready." : "You are signed in."}</h2><p>Enter the six-digit Gmail OTP sent to {email}. Your session is active; email verification unlocks booking and ride-publishing actions.</p>
       <div className="wt-verify-row"><div><b>Email verification</b><small>{emailVerified ? "Your email address is verified." : "Check your inbox for the verification code."}</small></div>{emailVerified ? <span className="wt-verified-pill"><Check size={13}/> Verified</span> : <span className="wt-pending-pill">Pending</span>}</div>
       {!emailVerified && <><label className="wt-field"><span>Email code</span><input value={emailCode} onChange={e=>setEmailCode(e.target.value.replace(/\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code"/></label><div className="wt-verify-actions"><button type="button" className="wt-btn wt-btn-primary" disabled={busy} onClick={()=>void verifyEmail()}>Verify email</button><button type="button" className="wt-link-button" disabled={busy} onClick={()=>void resendEmailCode()}>Resend code</button></div></>}
       {error && <p className="wt-auth-error" role="alert">{error}</p>}{notice && <p className="wt-inline-notice" role="status">{notice}</p>}
-      {emailVerified ? <Link className="wt-btn wt-btn-primary wt-full" to="/login">Continue to sign in <ArrowRight size={16}/></Link> : <p className="wt-legal-small">Only email verification is required before sign-in. No phone OTP is used.</p>}
+      {emailVerified ? <button className="wt-btn wt-btn-primary wt-full" type="button" onClick={()=>navigate(pendingRole==="admin"?"/admin":pendingRole==="driver"?"/dashboard/driver":"/dashboard/passenger",{replace:true})}>Continue to dashboard <ArrowRight size={16}/></button> : <p className="wt-legal-small">Email OTP is required to unlock protected actions. Phone OTP is not used.</p>}
     </section> : <form className="wt-panel wt-auth-card" onSubmit={isRegister ? register : login}>
       <Eyebrow>{isRegister ? "CREATE YOUR ACCOUNT" : "ACCOUNT ACCESS"}</Eyebrow><h2>{isRegister ? "Create your account" : "Sign in to WayTogether"}</h2><p>{isRegister ? "A few details to get started." : "Enter your details to access your account."}</p>
       {isRegister && <label className="wt-field"><span>Full name</span><input value={fullName} onChange={e=>setFullName(e.target.value)} placeholder="Your full name" autoComplete="name" required/></label>}
@@ -213,7 +241,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
       {error && <p className="wt-auth-error" role="alert">{error}</p>}{notice && <p className="wt-inline-notice" role="status">{notice}</p>}
       <button className="wt-btn wt-btn-primary wt-full" type="submit" disabled={busy}>{busy ? "Please wait…" : isRegister ? "Create account" : "Sign in"} <ArrowRight size={16}/></button>
       <p className="wt-auth-switch">{isRegister ? "Already have an account?" : "New to WayTogether?"} <Link to={isRegister ? "/login" : "/register"}>{isRegister ? "Log in" : "Create an account"}</Link></p>
-      <small className="wt-legal-small">{isRegister ? "Verify your email address to activate your account." : "Your account must have a verified email address."}</small>
+      <small className="wt-legal-small">{isRegister ? "You will be signed in immediately. Verify your Gmail OTP to unlock protected actions." : "You can sign in before email verification. Gmail OTP is still required before bookings and ride publishing."}</small>
     </form>}
   </div></main></PublicLayout>;
 }
