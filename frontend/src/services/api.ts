@@ -1,6 +1,27 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1").replace(/\/$/, "");
 
 type TokenPair = { access: string; refresh: string };
+const AUTH_STORAGE_KEY = "waytogether.auth";
+
+function readStoredTokens(): TokenPair | null {
+  try {
+    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (
+      value &&
+      typeof value === "object" &&
+      typeof (value as TokenPair).access === "string" &&
+      typeof (value as TokenPair).refresh === "string"
+    ) {
+      return { access: (value as TokenPair).access, refresh: (value as TokenPair).refresh };
+    }
+  } catch {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
+  return null;
+}
+
 export type AuthUser = {
   id: number;
   email: string;
@@ -12,17 +33,32 @@ export type AuthUser = {
   is_email_verified: boolean;
 };
 
-let accessToken: string | null = null;
-let refreshToken: string | null = null;
+const storedTokens = readStoredTokens();
+let accessToken: string | null = storedTokens?.access ?? null;
+let refreshToken: string | null = storedTokens?.refresh ?? null;
+
+function persistAuthTokens() {
+  try {
+    if (accessToken && refreshToken) {
+      sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ access: accessToken, refresh: refreshToken }));
+    } else {
+      sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+  } catch {
+    // Keep the in-memory session usable if browser storage is unavailable.
+  }
+}
 
 export function setAuthTokens(tokens: TokenPair) {
   accessToken = tokens.access;
   refreshToken = tokens.refresh;
+  persistAuthTokens();
 }
 
 export function clearAuthTokens() {
   accessToken = null;
   refreshToken = null;
+  persistAuthTokens();
 }
 
 export function hasAuthSession(): boolean {
@@ -85,6 +121,7 @@ async function refreshAccessToken(): Promise<boolean> {
     const payload = await response.json() as { access: string; refresh?: string };
     accessToken = payload.access;
     if (payload.refresh) refreshToken = payload.refresh;
+    persistAuthTokens();
     return true;
   } catch {
     clearAuthTokens();
