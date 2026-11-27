@@ -37,6 +37,13 @@ function PageNotice({children,kind="info"}:{children:ReactNode;kind?:"info"|"err
   return <div className={"wt-market-notice " + kind} role={kind==="error"?"alert":"status"}>{children}</div>;
 }
 
+function DriverAvatar({journey}:{journey:JourneyRecord}) {
+  const initials = journey.driver_name.split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase();
+  return <span className="wt-live-avatar">{journey.driver_photo_url
+    ? <img src={journey.driver_photo_url} alt={journey.driver_name + " profile photo"}/>
+    : initials}</span>;
+}
+
 function JourneyResultCard({journey}:{journey:JourneyRecord}) {
   const matchedFrom = journey.matched_origin_name || journey.origin_name;
   const matchedTo = journey.matched_destination_name || journey.destination_name;
@@ -47,7 +54,7 @@ function JourneyResultCard({journey}:{journey:JourneyRecord}) {
     <div className="wt-live-cities"><b>{matchedFrom}</b><ArrowRight size={15}/><b>{matchedTo}</b></div>
     {usesIntermediateSegment&&<div className="wt-live-stops">Matches an intermediate segment of the driver's planned route</div>}
     {journey.stops.length>0&&<div className="wt-live-stops"><MapPin size={12}/> Via {journey.stops.map(stop=>stop.location_name).join(" · ")}</div>}
-    <div className="wt-live-driver"><span className="wt-live-avatar">{journey.driver_name.split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase()}</span><span><b>{journey.driver_name}</b><small><ShieldCheck size={12}/> Approved driver · {journey.vehicle_details.make} {journey.vehicle_details.model}</small></span><span className="wt-live-seats"><Users size={13}/>{journey.available_seats} seats available</span></div>
+    <div className="wt-live-driver"><DriverAvatar journey={journey}/><span><b>{journey.driver_name}</b><small><ShieldCheck size={12}/> Approved driver · {journey.vehicle_details.vehicle_type} · {journey.vehicle_details.passenger_seats} seats</small></span><span className="wt-live-seats"><Users size={13}/>{journey.available_seats} seats available</span></div>
     <div className="wt-live-card-bottom"><span><small>Estimated expense share per passenger*</small><b>{money(journey.estimated_contribution_per_passenger)}</b></span><Link to={"/journeys/"+journey.id} className="wt-btn wt-btn-primary">View journey <ArrowRight size={15}/></Link></div>
   </article>;
 }
