@@ -67,7 +67,6 @@ class PassengerBookingCreateView(APIView):
                 if (
                     not journey.driver.is_active
                     or not journey.driver.is_email_verified
-                    or not journey.driver.is_phone_verified
                     or not profile
                     or profile.verification_status != DriverProfile.VerificationStatus.APPROVED
                     or journey.vehicle.verification_status != Vehicle.VerificationStatus.APPROVED
@@ -187,7 +186,6 @@ class BookingApproveView(APIView):
                 if (
                     not booking.passenger.is_active
                     or not booking.passenger.is_email_verified
-                    or not booking.passenger.is_phone_verified
                 ):
                     return Response(
                         {"detail": "The passenger account is no longer eligible for booking approval."},
