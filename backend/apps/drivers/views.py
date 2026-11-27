@@ -1,9 +1,12 @@
+import mimetypes
+
 from django.db import transaction
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -21,20 +24,21 @@ from .services import recompute_driver_status, recompute_vehicle_status, submit_
 
 class DriverProfileView(APIView):
     permission_classes = [IsAuthenticated, IsDriverAccount]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_profile(self, request):
         profile, _ = DriverProfile.objects.get_or_create(user=request.user)
         return profile
 
     def get(self, request):
-        return Response(DriverProfileSerializer(self.get_profile(request)).data)
+        return Response(DriverProfileSerializer(self.get_profile(request), context={"request": request}).data)
 
     def post(self, request):
         profile = self.get_profile(request)
         serializer = DriverProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(serializer.data)
+        return Response(DriverProfileSerializer(profile, context={"request": request}).data)
 
     def patch(self, request):
         profile = self.get_profile(request)
@@ -193,3 +197,39 @@ class AdminDocumentReviewView(APIView):
                 "driver_status": driver_status,
             }
         )
+
+
+
+class PublicDriverPhotoView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, driver_id):
+        profile = get_object_or_404(
+            DriverProfile.objects.select_related("user"),
+            user_id=driver_id,
+            verification_status=DriverProfile.VerificationStatus.APPROVED,
+            user__is_active=True,
+            user__is_email_verified=True,
+        )
+        if not profile.profile_photo:
+            raise Http404
+
+        # Only serve a photo while the approved driver has a published journey.
+        from apps.journeys.models import Journey
+        if not Journey.objects.filter(
+            driver_id=driver_id,
+            status=Journey.Status.PUBLISHED,
+            travel_date__gte=timezone.localdate(),
+        ).exists():
+            raise Http404
+
+        try:
+            opened = profile.profile_photo.open("rb")
+        except (FileNotFoundError, OSError, ValueError):
+            raise Http404("The driver photo is unavailable.")
+
+        content_type = mimetypes.guess_type(profile.profile_photo.name)[0] or "application/octet-stream"
+        response = FileResponse(opened, as_attachment=False, content_type=content_type)
+        response["Cache-Control"] = "public, max-age=300"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
