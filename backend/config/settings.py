@@ -178,6 +178,17 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "").strip()
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = _env_bool("EMAIL_USE_TLS", True)
 EMAIL_USE_SSL = _env_bool("EMAIL_USE_SSL", False)
+EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "django").strip().lower()
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "").strip()
+RESEND_API_URL = "https://api.resend.com/emails"
+
+if EMAIL_PROVIDER not in {"django", "resend"}:
+    raise ImproperlyConfigured("EMAIL_PROVIDER must be either 'django' or 'resend'.")
+if EMAIL_PROVIDER == "resend" and (not RESEND_API_KEY or not RESEND_FROM_EMAIL):
+    raise ImproperlyConfigured(
+        "Set RESEND_API_KEY and RESEND_FROM_EMAIL before enabling EMAIL_PROVIDER=resend."
+    )
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "").strip() or (
     f"WayTogether <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else "WayTogether <no-reply@waytogether.in>"
 )
