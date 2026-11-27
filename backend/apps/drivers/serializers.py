@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from .models import DriverProfile, Vehicle, VerificationDocument
-from .validators import validate_document_file
+from .validators import validate_document_file, validate_driver_profile_photo
 
 
 class DriverProfileSerializer(serializers.ModelSerializer):
@@ -12,16 +12,29 @@ class DriverProfileSerializer(serializers.ModelSerializer):
         source="get_verification_status_display",
         read_only=True,
     )
+    profile_photo = serializers.FileField(write_only=True, required=False, validators=[validate_driver_profile_photo])
+    driver_photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = DriverProfile
         fields = (
-            "id", "bio", "city", "state", "verification_status",
+            "id", "bio", "city", "state", "profile_photo", "driver_photo_url", "verification_status",
             "verification_status_display", "submitted_at", "created_at", "updated_at",
         )
         read_only_fields = (
-            "id", "verification_status", "verification_status_display",
+            "id", "driver_photo_url", "verification_status", "verification_status_display",
             "submitted_at", "created_at", "updated_at",
+        )
+
+    def get_driver_photo_url(self, obj):
+        if not obj.profile_photo:
+            return None
+        request = self.context.get("request")
+        if not request:
+            return None
+        from django.urls import reverse
+        return request.build_absolute_uri(
+            reverse("driver-public-photo", kwargs={"driver_id": obj.user_id})
         )
 
 
