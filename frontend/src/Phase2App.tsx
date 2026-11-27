@@ -146,7 +146,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   };
 
   const verifyEmail = async () => {
-    if (!/^\\d{6}$/.test(emailCode)) { setError("Enter the six-digit email code."); return; }
+    if (!/^\d{6}$/.test(emailCode)) { setError("Enter the six-digit email code."); return; }
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await apiRequest<{ detail: string; can_sign_in: boolean }>("/auth/verification/confirm/", {
@@ -200,7 +200,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
     {isRegister && stage === "verify" ? <section className="wt-panel wt-auth-card">
       <Eyebrow>VERIFY YOUR EMAIL</Eyebrow><h2>One more step.</h2><p>Enter the six-digit code sent to {email}.</p>
       <div className="wt-verify-row"><div><b>Email verification</b><small>{emailVerified ? "Your email address is verified." : "Check your inbox for the verification code."}</small></div>{emailVerified ? <span className="wt-verified-pill"><Check size={13}/> Verified</span> : <span className="wt-pending-pill">Pending</span>}</div>
-      {!emailVerified && <><label className="wt-field"><span>Email code</span><input value={emailCode} onChange={e=>setEmailCode(e.target.value.replace(/\\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code"/></label><div className="wt-verify-actions"><button type="button" className="wt-btn wt-btn-primary" disabled={busy} onClick={()=>void verifyEmail()}>Verify email</button><button type="button" className="wt-link-button" disabled={busy} onClick={()=>void resendEmailCode()}>Resend code</button></div></>}
+      {!emailVerified && <><label className="wt-field"><span>Email code</span><input value={emailCode} onChange={e=>setEmailCode(e.target.value.replace(/\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code"/></label><div className="wt-verify-actions"><button type="button" className="wt-btn wt-btn-primary" disabled={busy} onClick={()=>void verifyEmail()}>Verify email</button><button type="button" className="wt-link-button" disabled={busy} onClick={()=>void resendEmailCode()}>Resend code</button></div></>}
       {error && <p className="wt-auth-error" role="alert">{error}</p>}{notice && <p className="wt-inline-notice" role="status">{notice}</p>}
       {emailVerified ? <Link className="wt-btn wt-btn-primary wt-full" to="/login">Continue to sign in <ArrowRight size={16}/></Link> : <p className="wt-legal-small">Only email verification is required before sign-in. No phone OTP is used.</p>}
     </section> : <form className="wt-panel wt-auth-card" onSubmit={isRegister ? register : login}>
