@@ -38,3 +38,21 @@ class VerificationCodeAdmin(admin.ModelAdmin):
         return False
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(PassengerVerification)
+class PassengerVerificationAdmin(admin.ModelAdmin):
+    list_display = ("user", "status", "submitted_at", "reviewed_at", "reviewed_by")
+    list_filter = ("status",)
+    search_fields = ("user__email", "user__first_name", "user__last_name")
+    readonly_fields = (
+        "user", "masked_aadhaar_document", "passenger_photo",
+        "masked_aadhaar_file_name", "passenger_photo_file_name",
+        "consent_at", "submitted_at", "reviewed_by", "reviewed_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
