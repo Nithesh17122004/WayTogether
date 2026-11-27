@@ -34,4 +34,4 @@ class BookingSerializer(serializers.ModelSerializer):
 
     def get_vehicle_name(self, obj):
         vehicle = obj.journey.vehicle
-        return f"{vehicle.make} {vehicle.model} · {vehicle.registration_number}"
+        return vehicle.get_vehicle_type_display()
