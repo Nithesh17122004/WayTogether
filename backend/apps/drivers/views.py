@@ -45,7 +45,7 @@ class DriverProfileView(APIView):
         serializer = DriverProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(serializer.data)
+        return Response(DriverProfileSerializer(profile, context={"request": request}).data)
 
 
 class VehicleListCreateView(generics.ListCreateAPIView):
