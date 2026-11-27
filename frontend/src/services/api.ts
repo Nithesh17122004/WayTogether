@@ -25,6 +25,10 @@ export function clearAuthTokens() {
   refreshToken = null;
 }
 
+export function hasAuthSession(): boolean {
+  return Boolean(accessToken && refreshToken);
+}
+
 export async function logoutCurrentSession(): Promise<void> {
   const tokenToRevoke = refreshToken;
   clearAuthTokens();
