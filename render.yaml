@@ -14,14 +14,12 @@ services:
     branch: main
     rootDir: backend
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
-    startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 60 --max-requests 400 --max-requests-jitter 40
     healthCheckPath: /api/v1/health/
     autoDeploy: true
     envVars:
       - key: DJANGO_DEBUG
         value: "false"
-      - key: DJANGO_SECRET_KEY
-        value: "JpLldkbSi2NRzh8btWc-hhJ2JPTlzrNxrH_b6w0YpzdRLUP1ipGBRDDWwRQ9XJs-cbknw-rJq4--UnPlt6Fd4w"
       - key: PYTHON_VERSION
         value: "3.11.11"
       - key: DJANGO_ALLOWED_HOSTS
@@ -29,6 +27,11 @@ services:
       - key: DATABASE_URL
         fromDatabase:
           name: waytogether-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: waytogether-redis
+          type: keyvalue
           property: connectionString
       - key: CORS_ALLOWED_ORIGINS
         value: https://waytogether-web-azfy.onrender.com
@@ -43,8 +46,6 @@ services:
       - key: DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS
         value: "false"
       - key: DJANGO_SECURE_HSTS_PRELOAD
-        value: "false"
-      - key: SMS_OTP_CONSOLE
         value: "false"
       - key: EMAIL_BACKEND
         value: django.core.mail.backends.smtp.EmailBackend
@@ -72,3 +73,10 @@ services:
     envVars:
       - key: VITE_API_BASE_URL
         value: https://waytogether-api-t8vs.onrender.com/api/v1
+
+  - type: keyvalue
+    name: waytogether-redis
+    plan: free
+    region: singapore
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []

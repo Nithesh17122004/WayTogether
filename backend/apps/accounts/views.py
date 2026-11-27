@@ -11,11 +11,7 @@ from .serializers import (
     UserPublicSerializer,
     WayTogetherTokenSerializer,
 )
-from .services import (
-    OTPDeliveryUnavailable,
-    issue_verification_code,
-    verify_code,
-)
+from .services import issue_verification_code, verify_code
 
 User = get_user_model()
 
@@ -29,23 +25,20 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        delivery = {"email": "pending", "phone": "pending"}
+        delivery = {"email": "not_sent"}
         errors = {}
 
-        for channel in (VerificationCode.Channel.EMAIL, VerificationCode.Channel.PHONE):
-            try:
-                issue_verification_code(user, channel)
-                delivery[channel] = "sent"
-            except (OTPDeliveryUnavailable, ValueError) as exc:
-                delivery[channel] = "not_configured" if isinstance(exc, OTPDeliveryUnavailable) else "not_sent"
-                errors[channel] = str(exc)
-            except Exception:
-                delivery[channel] = "not_sent"
-                errors[channel] = "We could not send this verification code. Please try again."
+        try:
+            issue_verification_code(user, VerificationCode.Channel.EMAIL)
+            delivery["email"] = "sent"
+        except ValueError as exc:
+            errors["email"] = str(exc)
+        except Exception:
+            errors["email"] = "Your account was created, but the email could not be sent. Use Resend code after email delivery is configured."
 
         return Response(
             {
-                "detail": "Your account has been created. Verify your email and mobile number to sign in.",
+                "detail": "Your account has been created. Verify your email address to sign in.",
                 "user": UserPublicSerializer(user).data,
                 "verification": delivery,
                 "delivery_notes": errors,
@@ -60,10 +53,10 @@ class VerificationRequestView(APIView):
 
     def post(self, request):
         email = str(request.data.get("email", "")).strip().lower()
-        channel = request.data.get("channel")
-        if not email or channel not in VerificationCode.Channel.values:
+        channel = request.data.get("channel", VerificationCode.Channel.EMAIL)
+        if not email or channel != VerificationCode.Channel.EMAIL:
             return Response(
-                {"detail": "Provide a valid email address and channel (email or phone)."},
+                {"detail": "Provide a valid email address. Only email verification is supported."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -72,16 +65,13 @@ class VerificationRequestView(APIView):
         if not user:
             return Response({"detail": "If the account needs verification, a code will be sent."})
 
-        verified = user.is_email_verified if channel == "email" else user.is_phone_verified
-        if verified:
+        if user.is_email_verified:
             return Response({"detail": "If the account needs verification, a code will be sent."})
 
         try:
             issue_verification_code(user, channel)
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
-        except OTPDeliveryUnavailable as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception:
             return Response(
                 {"detail": "We could not send a verification code. Please try again later."},
@@ -96,11 +86,11 @@ class VerificationConfirmView(APIView):
 
     def post(self, request):
         email = str(request.data.get("email", "")).strip().lower()
-        channel = request.data.get("channel")
+        channel = request.data.get("channel", VerificationCode.Channel.EMAIL)
         code = str(request.data.get("code", "")).strip()
-        if not email or channel not in VerificationCode.Channel.values or len(code) != 6 or not code.isdigit():
+        if not email or channel != VerificationCode.Channel.EMAIL or len(code) != 6 or not code.isdigit():
             return Response(
-                {"detail": "Provide an email, channel and six-digit verification code."},
+                {"detail": "Provide an email address and six-digit email verification code."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -115,7 +105,7 @@ class VerificationConfirmView(APIView):
             {
                 "detail": message,
                 "user": UserPublicSerializer(user).data,
-                "can_sign_in": user.is_email_verified and user.is_phone_verified,
+                "can_sign_in": user.is_email_verified,
             }
         )
 

@@ -14,7 +14,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
         model = User
         fields = (
             "id", "email", "phone", "first_name", "last_name", "display_name",
-            "role", "is_email_verified", "is_phone_verified", "date_joined",
+            "role", "is_email_verified", "date_joined",
         )
         read_only_fields = fields
 
@@ -25,6 +25,9 @@ class RegisterSerializer(serializers.Serializer):
     phone = serializers.RegexField(
         regex=r"^\+[1-9]\d{7,14}$",
         max_length=16,
+        required=False,
+        allow_null=True,
+        allow_blank=True,
         error_messages={"invalid": "Use international phone format, for example +919876543210."},
     )
     password = serializers.CharField(write_only=True, min_length=8, trim_whitespace=False)
@@ -38,6 +41,9 @@ class RegisterSerializer(serializers.Serializer):
         return value
 
     def validate_phone(self, value):
+        value = value.strip() if isinstance(value, str) else value
+        if not value:
+            return None
         if User.objects.filter(phone=value).exists():
             raise serializers.ValidationError("An account with this mobile number already exists.")
         return value
@@ -52,7 +58,7 @@ class RegisterSerializer(serializers.Serializer):
         if len(name) < 2:
             raise serializers.ValidationError({"full_name": "Enter your full name."})
         attrs["full_name"] = name
-        candidate = User(email=attrs["email"], phone=attrs["phone"], first_name=name)
+        candidate = User(email=attrs["email"], phone=attrs.get("phone"), first_name=name)
         try:
             password_validation.validate_password(attrs["password"], user=candidate)
         except DjangoValidationError as exc:
@@ -82,14 +88,9 @@ class WayTogetherTokenSerializer(TokenObtainPairSerializer):
         user = self.user
         if not user.is_active:
             raise serializers.ValidationError("This account is inactive. Contact support.")
-        if not user.is_email_verified or not user.is_phone_verified:
-            missing = []
-            if not user.is_email_verified:
-                missing.append("email")
-            if not user.is_phone_verified:
-                missing.append("mobile number")
+        if not user.is_email_verified:
             raise serializers.ValidationError(
-                {"verification_required": f"Verify your {' and '.join(missing)} before signing in."}
+                {"verification_required": "Verify your email before signing in."}
             )
         data["user"] = UserPublicSerializer(user).data
         return data

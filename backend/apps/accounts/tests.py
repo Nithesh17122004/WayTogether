@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from .models import User, VerificationCode
-from .services import OTPDeliveryUnavailable, issue_verification_code, verify_code
+from .services import issue_verification_code, verify_code
 
 
 @override_settings(
@@ -28,42 +28,34 @@ class RegistrationAndVerificationTests(APITestCase):
         payload.update(overrides)
         return payload
 
-    def test_register_sends_email_code_and_logs_phone_code_only_in_development(self):
-        with self.assertLogs("apps.accounts.services", level="WARNING") as captured:
-            response = self.client.post(
-                "/api/v1/auth/register/",
-                self.registration_payload(),
-                format="json",
-            )
+    def test_register_sends_only_email_code_and_phone_is_optional(self):
+        response = self.client.post(
+            "/api/v1/auth/register/",
+            self.registration_payload(phone=None),
+            format="json",
+        )
 
         self.assertEqual(response.status_code, 201)
         user = User.objects.get(email="kamaresh@example.com")
+        self.assertIsNone(user.phone)
         self.assertFalse(user.is_email_verified)
         self.assertFalse(user.is_phone_verified)
         self.assertEqual(response.data["verification"]["email"], "sent")
-        self.assertEqual(response.data["verification"]["phone"], "sent")
+        self.assertNotIn("phone", response.data["verification"])
         self.assertEqual(len(mail.outbox), 1)
-        email_match = re.search(r"code is (\d{6})", mail.outbox[0].body)
-        phone_match = re.search(r"phone OTP for \+919876543210: (\d{6})", "\n".join(captured.output))
-        self.assertIsNotNone(email_match)
-        self.assertIsNotNone(phone_match)
 
+        email_match = re.search(r"code is (\\d{6})", mail.outbox[0].body)
+        self.assertIsNotNone(email_match)
         email_result = self.client.post(
             "/api/v1/auth/verification/confirm/",
-            {"email": user.email, "channel": "email", "code": email_match.group(1)},
-            format="json",
-        )
-        phone_result = self.client.post(
-            "/api/v1/auth/verification/confirm/",
-            {"email": user.email, "channel": "phone", "code": phone_match.group(1)},
+            {"email": user.email, "code": email_match.group(1)},
             format="json",
         )
         self.assertEqual(email_result.status_code, 200)
-        self.assertEqual(phone_result.status_code, 200)
+        self.assertTrue(email_result.data["can_sign_in"])
         user.refresh_from_db()
         self.assertTrue(user.is_email_verified)
-        self.assertTrue(user.is_phone_verified)
-        self.assertTrue(phone_result.data["can_sign_in"])
+        self.assertFalse(user.is_phone_verified)
 
     def test_registration_requires_terms_acceptance(self):
         response = self.client.post(
@@ -93,7 +85,7 @@ class RegistrationAndVerificationTests(APITestCase):
         self.assertEqual(duplicate_email.status_code, 400)
         self.assertEqual(duplicate_phone.status_code, 400)
 
-    def test_login_is_blocked_until_both_channels_are_verified(self):
+    def test_login_is_blocked_until_email_is_verified(self):
         User.objects.create_user(
             email="kamaresh@example.com",
             phone="+919876543210",
@@ -105,7 +97,7 @@ class RegistrationAndVerificationTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 400)
-        self.assertIn("verification_required", response.data)
+        self.assertEqual(response.data["verification_required"], "Verify your email before signing in.")
 
     def test_login_returns_tokens_and_profile_after_verification(self):
         user = User.objects.create_user(
@@ -114,7 +106,6 @@ class RegistrationAndVerificationTests(APITestCase):
             password="A-Strong-Unique-Password-928!",
             role=User.Role.DRIVER,
             is_email_verified=True,
-            is_phone_verified=True,
         )
         response = self.client.post(
             "/api/v1/auth/login/",
@@ -137,7 +128,6 @@ class RegistrationAndVerificationTests(APITestCase):
             phone="+919876543219",
             password="A-Strong-Unique-Password-928!",
             is_email_verified=True,
-            is_phone_verified=True,
         )
         login = self.client.post(
             "/api/v1/auth/login/",
@@ -209,8 +199,8 @@ class VerificationServiceTests(TestCase):
         )
 
     @override_settings(DEBUG=False, SMS_OTP_CONSOLE=True)
-    def test_phone_otp_is_never_logged_or_kept_when_debug_is_disabled(self):
-        with self.assertRaises(OTPDeliveryUnavailable):
+    def test_phone_otp_is_not_supported(self):
+        with self.assertRaises(ValueError):
             issue_verification_code(self.user, VerificationCode.Channel.PHONE)
         self.assertFalse(
             VerificationCode.objects.filter(user=self.user, channel=VerificationCode.Channel.PHONE).exists()

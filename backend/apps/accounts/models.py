@@ -21,7 +21,6 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
         extra_fields.setdefault("is_email_verified", True)
-        extra_fields.setdefault("is_phone_verified", True)
         extra_fields.setdefault("role", "admin")
         if extra_fields.get("is_staff") is not True:
             raise ValueError("Superuser must have is_staff=True.")
@@ -41,6 +40,9 @@ class User(AbstractUser):
     phone = models.CharField(
         max_length=16,
         unique=True,
+        null=True,
+        blank=True,
+        default=None,
         validators=[
             RegexValidator(
                 regex=r"^\+[1-9]\d{7,14}$",

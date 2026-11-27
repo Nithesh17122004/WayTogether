@@ -1,4 +1,3 @@
-import logging
 import secrets
 from datetime import timedelta
 
@@ -9,14 +8,9 @@ from django.utils import timezone
 
 from .models import VerificationCode
 
-logger = logging.getLogger(__name__)
 OTP_TTL_MINUTES = 10
 OTP_RESEND_SECONDS = 60
 OTP_MAX_ATTEMPTS = 5
-
-
-class OTPDeliveryUnavailable(Exception):
-    """Raised when a verification channel has no configured delivery provider."""
 
 
 def _generate_code():
@@ -28,13 +22,10 @@ def _latest_code(user, channel):
 
 
 def issue_verification_code(user, channel):
-    if channel not in VerificationCode.Channel.values:
-        raise ValueError("Unsupported verification channel.")
+    if channel != VerificationCode.Channel.EMAIL:
+        raise ValueError("WayTogether supports email verification only.")
 
-    already_verified = (
-        user.is_email_verified if channel == VerificationCode.Channel.EMAIL
-        else user.is_phone_verified
-    )
+    already_verified = user.is_email_verified
     if already_verified:
         return None
 
@@ -71,19 +62,12 @@ def issue_verification_code(user, channel):
         except Exception:
             record.delete()
             raise
-    elif getattr(settings, "SMS_OTP_CONSOLE", False) and settings.DEBUG:
-        # Local development only. Never expose OTP values through an API response.
-        logger.warning("WayTogether development phone OTP for %s: %s", user.phone, code)
-    else:
-        record.delete()
-        raise OTPDeliveryUnavailable(
-            "Mobile OTP delivery is not configured. Connect an approved SMS provider before production use."
-        )
-
     return record
 
 
 def verify_code(user, channel, submitted_code):
+    if channel != VerificationCode.Channel.EMAIL:
+        return False, "WayTogether supports email verification only."
     record = _latest_code(user, channel)
     if not record or record.verified_at or record.expires_at <= timezone.now():
         return False, "The verification code is invalid or expired."
@@ -97,10 +81,6 @@ def verify_code(user, channel, submitted_code):
 
     record.verified_at = timezone.now()
     record.save(update_fields=["verified_at"])
-    if channel == VerificationCode.Channel.EMAIL:
-        user.is_email_verified = True
-        user.save(update_fields=["is_email_verified"])
-    elif channel == VerificationCode.Channel.PHONE:
-        user.is_phone_verified = True
-        user.save(update_fields=["is_phone_verified"])
+    user.is_email_verified = True
+    user.save(update_fields=["is_email_verified"])
     return True, "Verification completed."

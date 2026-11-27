@@ -87,11 +87,10 @@ function PublishPage() {
   return <PublicLayout><JourneyPublishContent/></PublicLayout>;
 }
 type AuthMode = "login" | "register";
-type VerificationChannel = "email" | "phone";
 type RegisterResult = {
   detail: string;
-  user: { email: string; phone: string; role: string };
-  verification: { email: string; phone: string };
+  user: { email: string; phone: string | null; role: string };
+  verification: { email: string };
   delivery_notes?: Record<string,string>;
 };
 type LoginResult = {
@@ -106,13 +105,12 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   const [stage, setStage] = useState<"form" | "verify">("form");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("+91");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"passenger" | "driver">("passenger");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [emailCode, setEmailCode] = useState("");
-  const [phoneCode, setPhoneCode] = useState("");
-  const [verified, setVerified] = useState({ email: false, phone: false });
+  const [emailVerified, setEmailVerified] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -124,19 +122,16 @@ function AuthPage({ mode }: { mode: AuthMode }) {
       const result = await apiRequest<RegisterResult>("/auth/register/", {
         method: "POST",
         body: JSON.stringify({
-          full_name: fullName,
+          full_name: fullName.trim(),
           email: email.trim().toLowerCase(),
-          phone: phone.trim(),
+          phone: phone.trim() || null,
           password,
           role,
           accepted_terms: acceptedTerms,
         }),
       });
       setStage("verify");
-      setNotice(result.detail);
-      if (result.delivery_notes && Object.keys(result.delivery_notes).length) {
-        setNotice(result.detail + " " + Object.values(result.delivery_notes).join(" "));
-      }
+      setNotice(result.delivery_notes?.email ? result.detail + " " + result.delivery_notes.email : result.detail);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
     } finally {
@@ -144,34 +139,33 @@ function AuthPage({ mode }: { mode: AuthMode }) {
     }
   };
 
-  const verifyChannel = async (channel: VerificationChannel) => {
-    const code = channel === "email" ? emailCode : phoneCode;
-    if (!/^\\d{6}$/.test(code)) { setError("Enter the six-digit code."); return; }
+  const verifyEmail = async () => {
+    if (!/^\\d{6}$/.test(emailCode)) { setError("Enter the six-digit email code."); return; }
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await apiRequest<{ detail: string; can_sign_in: boolean }>("/auth/verification/confirm/", {
         method: "POST",
-        body: JSON.stringify({ email: email.trim().toLowerCase(), channel, code }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), code: emailCode }),
       });
-      setVerified(previous => ({ ...previous, [channel]: true }));
+      setEmailVerified(true);
       setNotice(result.detail + (result.can_sign_in ? " You can now sign in." : ""));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Verification failed. Request a new code.");
+      setError(err instanceof Error ? err.message : "Email verification failed. Request a new code.");
     } finally {
       setBusy(false);
     }
   };
 
-  const resendCode = async (channel: VerificationChannel) => {
+  const resendEmailCode = async () => {
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await apiRequest<{ detail: string }>("/auth/verification/request/", {
         method: "POST",
-        body: JSON.stringify({ email: email.trim().toLowerCase(), channel }),
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      setNotice(result.detail + (channel === "phone" ? " In local development, check the Django server console." : ""));
+      setNotice(result.detail);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not request a new code.");
+      setError(err instanceof Error ? err.message : "Could not request a new email code.");
     } finally {
       setBusy(false);
     }
@@ -198,25 +192,22 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   return <PublicLayout><main className="wt-auth-page"><div className="wt-auth-shell">
     <div className="wt-auth-brand"><Brand/><Eyebrow>YOUR JOURNEY, CONNECTED</Eyebrow><h1>{isRegister ? "Start with a shared direction." : "Welcome back."}</h1><p>{isRegister ? "Create your WayTogether account and discover a more connected way to travel." : "Sign in to continue your WayTogether journey."}</p><div className="wt-auth-benefit"><ShieldCheck/><span><b>Thoughtful travel starts with trust.</b><small>Designed around independently planned journeys and transparent expense sharing.</small></span></div></div>
     {isRegister && stage === "verify" ? <section className="wt-panel wt-auth-card">
-      <Eyebrow>VERIFY YOUR ACCOUNT</Eyebrow><h2>One more step.</h2><p>Verify the email and mobile number registered to {email}.</p>
-      <div className="wt-verify-row"><div><b>Email verification</b><small>{verified.email ? "Verified" : "Enter the code sent to your email."}</small></div>{verified.email ? <span className="wt-verified-pill"><Check size={13}/> Verified</span> : <span className="wt-pending-pill">Pending</span>}</div>
-      {!verified.email && <><label className="wt-field"><span>Email code</span><input value={emailCode} onChange={e=>setEmailCode(e.target.value.replace(/\\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code"/></label><div className="wt-verify-actions"><button className="wt-btn wt-btn-primary" disabled={busy} onClick={()=>verifyChannel("email")}>Verify email</button><button type="button" className="wt-link-button" disabled={busy} onClick={()=>resendCode("email")}>Resend code</button></div></>}
-      <div className="wt-verify-row"><div><b>Mobile verification</b><small>{verified.phone ? "Verified" : "Enter the code sent to your mobile."}</small></div>{verified.phone ? <span className="wt-verified-pill"><Check size={13}/> Verified</span> : <span className="wt-pending-pill">Pending</span>}</div>
-      {!verified.phone && <><label className="wt-field"><span>Mobile code</span><input value={phoneCode} onChange={e=>setPhoneCode(e.target.value.replace(/\\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code"/></label><div className="wt-verify-actions"><button className="wt-btn wt-btn-primary" disabled={busy} onClick={()=>verifyChannel("phone")}>Verify mobile</button><button type="button" className="wt-link-button" disabled={busy} onClick={()=>resendCode("phone")}>Resend code</button></div></>}
-      <div className="wt-otp-dev-note"><ShieldCheck size={15}/><span>Development mode: email codes appear in the Django console email output; mobile codes are logged in the Django server console. Production SMS delivery must be configured before launch.</span></div>
+      <Eyebrow>VERIFY YOUR EMAIL</Eyebrow><h2>One more step.</h2><p>Enter the six-digit code sent to {email}.</p>
+      <div className="wt-verify-row"><div><b>Email verification</b><small>{emailVerified ? "Your email address is verified." : "Check your inbox for the verification code."}</small></div>{emailVerified ? <span className="wt-verified-pill"><Check size={13}/> Verified</span> : <span className="wt-pending-pill">Pending</span>}</div>
+      {!emailVerified && <><label className="wt-field"><span>Email code</span><input value={emailCode} onChange={e=>setEmailCode(e.target.value.replace(/\\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code"/></label><div className="wt-verify-actions"><button type="button" className="wt-btn wt-btn-primary" disabled={busy} onClick={()=>void verifyEmail()}>Verify email</button><button type="button" className="wt-link-button" disabled={busy} onClick={()=>void resendEmailCode()}>Resend code</button></div></>}
       {error && <p className="wt-auth-error" role="alert">{error}</p>}{notice && <p className="wt-inline-notice" role="status">{notice}</p>}
-      {verified.email && verified.phone ? <Link className="wt-btn wt-btn-primary wt-full" to="/login">Continue to sign in <ArrowRight size={16}/></Link> : <p className="wt-legal-small">Both channels must be verified before sign-in is enabled.</p>}
+      {emailVerified ? <Link className="wt-btn wt-btn-primary wt-full" to="/login">Continue to sign in <ArrowRight size={16}/></Link> : <p className="wt-legal-small">Only email verification is required before sign-in. No phone OTP is used.</p>}
     </section> : <form className="wt-panel wt-auth-card" onSubmit={isRegister ? register : login}>
       <Eyebrow>{isRegister ? "CREATE YOUR ACCOUNT" : "ACCOUNT ACCESS"}</Eyebrow><h2>{isRegister ? "Create your account" : "Sign in to WayTogether"}</h2><p>{isRegister ? "A few details to get started." : "Enter your details to access your account."}</p>
       {isRegister && <label className="wt-field"><span>Full name</span><input value={fullName} onChange={e=>setFullName(e.target.value)} placeholder="Your full name" autoComplete="name" required/></label>}
       <label className="wt-field"><span>Email address</span><input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" autoComplete="email" required/></label>
-      {isRegister && <><label className="wt-field"><span>Mobile number (international format)</span><input value={phone} onChange={e=>setPhone(e.target.value.replace(/[^0-9+]/g,""))} type="tel" inputMode="tel" placeholder="+919876543210" autoComplete="tel" maxLength={16} pattern="[+][1-9][0-9]{7,14}" title="Enter a number with country code, for example +919876543210." required/><small className="wt-field-hint">Include your country code, for example +91 followed by your 10-digit mobile number.</small></label><label className="wt-field"><span>Account type</span><select value={role} onChange={e=>setRole(e.target.value as "passenger"|"driver")}><option value="passenger">Passenger</option><option value="driver">Driver</option></select></label></>}
+      {isRegister && <><label className="wt-field"><span>Mobile number <small>(optional)</small></span><input value={phone} onChange={e=>setPhone(e.target.value.replace(/[^0-9+]/g,""))} type="tel" inputMode="tel" placeholder="+919876543210" autoComplete="tel" maxLength={16}/><small className="wt-field-hint">Optional contact information only. No mobile OTP or phone verification is required.</small></label><label className="wt-field"><span>Account type</span><select value={role} onChange={e=>setRole(e.target.value as "passenger"|"driver")}><option value="passenger">Passenger</option><option value="driver">Driver</option></select></label></>}
       <label className="wt-field"><span>Password</span><input value={password} onChange={e=>setPassword(e.target.value)} type="password" minLength={8} placeholder="At least 8 characters" autoComplete={isRegister ? "new-password" : "current-password"} required/></label>
       {isRegister && <label className="wt-terms-check"><input type="checkbox" checked={acceptedTerms} onChange={e=>setAcceptedTerms(e.target.checked)} required/><span>I accept the WayTogether terms and privacy policy.</span></label>}
       {error && <p className="wt-auth-error" role="alert">{error}</p>}{notice && <p className="wt-inline-notice" role="status">{notice}</p>}
       <button className="wt-btn wt-btn-primary wt-full" type="submit" disabled={busy}>{busy ? "Please wait…" : isRegister ? "Create account" : "Sign in"} <ArrowRight size={16}/></button>
       <p className="wt-auth-switch">{isRegister ? "Already have an account?" : "New to WayTogether?"} <Link to={isRegister ? "/login" : "/register"}>{isRegister ? "Log in" : "Create an account"}</Link></p>
-      <small className="wt-legal-small">{isRegister ? "Email and mobile verification are required before the first sign-in." : "Your account must have verified email and mobile number."}</small>
+      <small className="wt-legal-small">{isRegister ? "Verify your email address to activate your account." : "Your account must have a verified email address."}</small>
     </form>}
   </div></main></PublicLayout>;
 }

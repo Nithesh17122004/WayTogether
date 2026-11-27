@@ -4,13 +4,12 @@ type TokenPair = { access: string; refresh: string };
 export type AuthUser = {
   id: number;
   email: string;
-  phone: string;
+  phone: string | null;
   first_name: string;
   last_name: string;
   display_name: string;
   role: "passenger" | "driver" | "admin";
   is_email_verified: boolean;
-  is_phone_verified: boolean;
 };
 
 let accessToken: string | null = null;
@@ -43,14 +42,26 @@ export async function logoutCurrentSession(): Promise<void> {
   }
 }
 
+function collectApiErrors(value: unknown, field = ""): string[] {
+  if (typeof value === "string") return [field ? `${field}: ${value}` : value];
+  if (Array.isArray(value)) return value.flatMap(item => collectApiErrors(item, field));
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).flatMap(([key, nested]) => {
+      const label = key === "detail" || key === "non_field_errors"
+        ? field
+        : key.replaceAll("_", " ");
+      return collectApiErrors(nested, label);
+    });
+  }
+  return [];
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
+  const payload: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const detail = payload.detail
-      || payload.verification_required
-      || Object.values(payload).flat().filter(Boolean).join(" ")
-      || `Request failed with status ${response.status}.`;
-    throw new Error(String(detail));
+    const messages = collectApiErrors(payload);
+    const detail = [...new Set(messages)].filter(Boolean).join(" ");
+    throw new Error(detail || `Request failed with status ${response.status}.`);
   }
   return payload as T;
 }
