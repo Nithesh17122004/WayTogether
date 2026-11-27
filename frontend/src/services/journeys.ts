@@ -18,9 +18,6 @@ export type JourneyStop = {
 };
 
 export type JourneyVehicle = {
-  registration_number: string;
-  make: string;
-  model: string;
   vehicle_type: string;
   passenger_seats: number;
 };
@@ -28,6 +25,7 @@ export type JourneyVehicle = {
 export type JourneyRecord = {
   id: number;
   driver_name: string;
+  driver_photo_url: string | null;
   driver_verification_status: string;
   vehicle_details: JourneyVehicle;
   origin_name: string;
