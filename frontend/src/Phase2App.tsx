@@ -1,5 +1,5 @@
 import "./phase2.css";
-import { apiRequest, downloadPrivateFile, getCurrentUser, logoutCurrentSession, setAuthTokens } from "./services/api";
+import { apiRequest, downloadPrivateFile, getCurrentUser, hasAuthSession, logoutCurrentSession, setAuthTokens } from "./services/api";
 import { JourneyDetailContent, JourneyPublishContent, JourneySearchContent, MyJourneysContent } from "./pages/JourneyPages";
 import { DriverBookingRequestsContent, PassengerBookingsContent } from "./pages/BookingPages";
 import { DriverFinanceContent, PassengerFinanceContent } from "./pages/FinancePages";
@@ -118,13 +118,19 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   const register = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBusy(true); setError(""); setNotice("");
+    const normalizedPhone = phone.trim();
+    if (normalizedPhone && !/^\\+[1-9]\\d{7,14}$/.test(normalizedPhone)) {
+      setError("Enter the mobile number in international format, such as +919876543210, or leave it blank.");
+      setBusy(false);
+      return;
+    }
     try {
       const result = await apiRequest<RegisterResult>("/auth/register/", {
         method: "POST",
         body: JSON.stringify({
           full_name: fullName.trim(),
           email: email.trim().toLowerCase(),
-          phone: phone.trim() || null,
+          phone: normalizedPhone || null,
           password,
           role,
           accepted_terms: acceptedTerms,
@@ -267,6 +273,7 @@ function StatusPill({status}:{status:string}) {
 }
 
 function DriverVerificationPage() {
+  const navigate = useNavigate();
   const [profile,setProfile] = useState<DriverProfileRecord | null>(null);
   const [vehicles,setVehicles] = useState<VehicleRecord[]>([]);
   const [documents,setDocuments] = useState<DriverDocumentRecord[]>([]);
@@ -285,6 +292,11 @@ function DriverVerificationPage() {
 
   const load = async () => {
     setLoading(true); setError("");
+    if (!hasAuthSession()) {
+      navigate("/login", { replace: true });
+      setLoading(false);
+      return;
+    }
     try {
       const [profileData,vehicleData,documentData] = await Promise.all([
         apiRequest<DriverProfileRecord>("/drivers/profile/",{},true),
