@@ -65,7 +65,6 @@ def _published_queryset():
             travel_date__gte=timezone.localdate(),
             driver__is_active=True,
             driver__is_email_verified=True,
-            driver__is_phone_verified=True,
             driver__driver_profile__verification_status=DriverProfile.VerificationStatus.APPROVED,
             vehicle__verification_status=Vehicle.VerificationStatus.APPROVED,
         )
@@ -229,7 +228,6 @@ class JourneyDetailView(APIView):
             is_visible = (
                 journey.driver.is_active
                 and journey.driver.is_email_verified
-                and journey.driver.is_phone_verified
                 and getattr(journey.driver, "driver_profile", None) is not None
                 and journey.driver.driver_profile.verification_status == DriverProfile.VerificationStatus.APPROVED
                 and journey.vehicle.verification_status == Vehicle.VerificationStatus.APPROVED
