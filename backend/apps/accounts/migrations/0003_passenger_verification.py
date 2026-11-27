@@ -36,7 +36,7 @@ class Migration(migrations.Migration):
                 )),
                 ("review_note", models.CharField(blank=True, max_length=500)),
                 ("reviewed_at", models.DateTimeField(blank=True, null=True)),
-                ("submitted_at", models.DateTimeField(auto_now=True)),
+                ("submitted_at", models.DateTimeField(auto_now_add=True)),
                 ("reviewed_by", models.ForeignKey(
                     blank=True,
                     null=True,
