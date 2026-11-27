@@ -9,6 +9,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.drivers.permissions import IsPlatformAdmin
@@ -51,11 +52,17 @@ class RegisterView(APIView):
         except Exception:
             errors["email"] = "Your account was created, but the email could not be sent. Use Resend code after email delivery is configured."
 
+        # Create an authenticated session immediately after successful account
+        # creation. Email OTP remains mandatory for verified-only platform actions.
+        refresh = RefreshToken.for_user(user)
         return Response(
             {
-                "detail": "Your account has been created. Verify your email address to sign in.",
+                "detail": "Your account has been created and you are signed in. Verify your email to unlock bookings and ride publishing.",
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
                 "user": UserPublicSerializer(user).data,
                 "verification": delivery,
+                "email_verification_required": not user.is_email_verified,
                 "delivery_notes": errors,
             },
             status=status.HTTP_201_CREATED,
