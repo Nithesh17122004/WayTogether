@@ -10,7 +10,8 @@ class IsVerifiedPassenger(BasePermission):
             user and user.is_authenticated and user.is_active
             and user.role == "passenger"
             and user.is_email_verified
-        )
+            and getattr(getattr(user, "passenger_verification", None), "status", None) == "approved"
+        
 
 
 class IsVerifiedDriver(BasePermission):
