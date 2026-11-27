@@ -26,7 +26,7 @@ class DriverVerificationApiTests(APITestCase):
             first_name="Test Driver",
             role=role,
             is_email_verified=True,
-            is_phone_verified=True,
+            is_phone_verified=False,
         )
 
     def create_vehicle(self, owner):
@@ -61,6 +61,8 @@ class DriverVerificationApiTests(APITestCase):
 
     def test_driver_profile_is_created_for_verified_driver(self):
         driver = self.create_driver()
+        self.assertTrue(driver.is_email_verified)
+        self.assertFalse(driver.is_phone_verified)
         self.client.force_authenticate(driver)
         response = self.client.get("/api/v1/drivers/profile/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
