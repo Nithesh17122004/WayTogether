@@ -1,17 +1,31 @@
 from django.contrib.auth import get_user_model
+from django.db import transaction
+from django.http import FileResponse, Http404
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from .models import VerificationCode
+from apps.drivers.permissions import IsPlatformAdmin
+
+from .models import PassengerVerification, VerificationCode
 from .serializers import (
     RegisterSerializer,
     UserPublicSerializer,
     WayTogetherTokenSerializer,
 )
 from .services import issue_verification_code, verify_code
+from .passenger_verification_serializers import (
+    AdminPassengerVerificationSerializer,
+    PassengerVerificationReviewSerializer,
+    PassengerVerificationStatusSerializer,
+    PassengerVerificationUploadSerializer,
+    safe_original_name,
+)
 
 User = get_user_model()
 
@@ -126,3 +140,147 @@ class CurrentUserView(APIView):
 
     def get(self, request):
         return Response(UserPublicSerializer(request.user).data)
+
+
+
+class PassengerVerificationView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def _ensure_passenger(self, request):
+        if request.user.role != User.Role.PASSENGER:
+            return Response({"detail": "Passenger identity verification is only available to passenger accounts."}, status=403)
+        return None
+
+    def get(self, request):
+        denied = self._ensure_passenger(request)
+        if denied:
+            return denied
+        verification = PassengerVerification.objects.filter(user=request.user).first()
+        if not verification:
+            return Response({"status": "not_submitted", "review_note": ""})
+        return Response(PassengerVerificationStatusSerializer(verification).data)
+
+    def post(self, request):
+        denied = self._ensure_passenger(request)
+        if denied:
+            return denied
+        serializer = PassengerVerificationUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        aadhaar_file = serializer.validated_data["masked_aadhaar_document"]
+        photo_file = serializer.validated_data["passenger_photo"]
+        now = timezone.now()
+
+        with transaction.atomic():
+            verification = (
+                PassengerVerification.objects.select_for_update()
+                .filter(user=request.user)
+                .first()
+            )
+            is_new = verification is None
+            if is_new:
+                verification = PassengerVerification(user=request.user, consent_at=now)
+
+            old_files = []
+            if verification.pk:
+                if verification.masked_aadhaar_document:
+                    old_files.append((verification.masked_aadhaar_document.storage, verification.masked_aadhaar_document.name))
+                if verification.passenger_photo:
+                    old_files.append((verification.passenger_photo.storage, verification.passenger_photo.name))
+
+            verification.masked_aadhaar_document = aadhaar_file
+            verification.passenger_photo = photo_file
+            verification.masked_aadhaar_file_name = safe_original_name(aadhaar_file)
+            verification.passenger_photo_file_name = safe_original_name(photo_file)
+            verification.consent_at = now
+            verification.status = PassengerVerification.Status.PENDING
+            verification.review_note = ""
+            verification.reviewed_by = None
+            verification.reviewed_at = None
+            verification.save()
+
+            new_paths = {
+                verification.masked_aadhaar_document.name,
+                verification.passenger_photo.name,
+            }
+            for storage, old_path in old_files:
+                if old_path not in new_paths:
+                    transaction.on_commit(lambda storage=storage, path=old_path: storage.delete(path))
+
+        return Response(
+            {
+                "detail": "Your masked Aadhaar proof and passenger photo have been submitted for manual review.",
+                "verification": PassengerVerificationStatusSerializer(verification).data,
+            },
+            status=status.HTTP_201_CREATED if is_new else status.HTTP_200_OK,
+        )
+
+
+class PassengerVerificationDocumentDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, verification_id, document_type):
+        verification = get_object_or_404(PassengerVerification, pk=verification_id)
+        if verification.user_id != request.user.id and not request.user.is_staff:
+            raise Http404
+
+        if document_type == "aadhaar":
+            stored_file = verification.masked_aadhaar_document
+            filename = verification.masked_aadhaar_file_name
+        elif document_type == "photo":
+            stored_file = verification.passenger_photo
+            filename = verification.passenger_photo_file_name
+        else:
+            raise Http404
+
+        try:
+            opened = stored_file.open("rb")
+        except (FileNotFoundError, OSError, ValueError):
+            raise Http404("The private verification file is not available.")
+
+        response = FileResponse(opened, as_attachment=True, filename=filename, content_type="application/octet-stream")
+        response["Cache-Control"] = "private, no-store"
+        response["Pragma"] = "no-cache"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
+
+
+class AdminPassengerVerificationQueueView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsPlatformAdmin]
+    serializer_class = AdminPassengerVerificationSerializer
+
+    def get_queryset(self):
+        return (
+            PassengerVerification.objects.filter(status=PassengerVerification.Status.PENDING)
+            .select_related("user")
+            .order_by("submitted_at")
+        )
+
+
+class AdminPassengerVerificationReviewView(APIView):
+    permission_classes = [IsAuthenticated, IsPlatformAdmin]
+
+    def post(self, request, verification_id):
+        serializer = PassengerVerificationReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            verification = get_object_or_404(
+                PassengerVerification.objects.select_for_update().select_related("user"),
+                pk=verification_id,
+            )
+            if verification.status != PassengerVerification.Status.PENDING:
+                return Response({"detail": "This passenger submission has already been reviewed."}, status=409)
+
+            decision = serializer.validated_data["decision"]
+            verification.status = decision
+            verification.review_note = serializer.validated_data.get("review_note", "").strip()
+            verification.reviewed_by = request.user
+            verification.reviewed_at = timezone.now()
+            verification.save(update_fields=["status", "review_note", "reviewed_by", "reviewed_at", "submitted_at"])
+
+        return Response({
+            "detail": f"Passenger identity verification {decision}.",
+            "verification_id": verification.pk,
+            "status": verification.status,
+        })
