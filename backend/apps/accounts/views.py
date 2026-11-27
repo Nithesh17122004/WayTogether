@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.http import FileResponse, Http404
@@ -165,6 +166,11 @@ class PassengerVerificationView(APIView):
         denied = self._ensure_passenger(request)
         if denied:
             return denied
+        if not settings.PRIVATE_MEDIA_STORAGE_READY:
+            return Response(
+                {"detail": "Passenger identity uploads are disabled until private persistent file storage is configured. Do not submit Aadhaar documents yet."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         serializer = PassengerVerificationUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
