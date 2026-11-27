@@ -61,6 +61,8 @@ services:
         value: "true"
       - key: FINANCE_SANDBOX_ENABLED
         value: "false"
+      - key: PRIVATE_MEDIA_STORAGE_READY
+        value: "false"
 
   - type: web
     name: waytogether-web
