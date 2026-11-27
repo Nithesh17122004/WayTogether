@@ -7,6 +7,10 @@ from .views import (
     RegisterView,
     VerificationConfirmView,
     VerificationRequestView,
+    PassengerVerificationView,
+    PassengerVerificationDocumentDownloadView,
+    AdminPassengerVerificationQueueView,
+    AdminPassengerVerificationReviewView,
 )
 from rest_framework_simplejwt.views import TokenBlacklistView
 
