@@ -119,7 +119,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
     event.preventDefault();
     setBusy(true); setError(""); setNotice("");
     const normalizedPhone = phone.trim();
-    if (normalizedPhone && !/^\\+[1-9]\\d{7,14}$/.test(normalizedPhone)) {
+    if (normalizedPhone && !/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
       setError("Enter the mobile number in international format, such as +919876543210, or leave it blank.");
       setBusy(false);
       return;
