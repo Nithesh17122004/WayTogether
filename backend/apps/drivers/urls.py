@@ -4,6 +4,7 @@ from .views import (
     AdminDocumentReviewView,
     AdminVerificationQueueView,
     DocumentDownloadView,
+    PublicDriverPhotoView,
     DriverProfileView,
     SubmitVehicleVerificationView,
     VehicleDetailView,
@@ -13,6 +14,7 @@ from .views import (
 
 urlpatterns = [
     path("profile/", DriverProfileView.as_view(), name="driver-profile"),
+    path("public/<int:driver_id>/photo/", PublicDriverPhotoView.as_view(), name="driver-public-photo"),
     path("vehicles/", VehicleListCreateView.as_view(), name="driver-vehicles"),
     path("vehicles/<int:pk>/", VehicleDetailView.as_view(), name="driver-vehicle-detail"),
     path("documents/", VerificationDocumentListCreateView.as_view(), name="driver-documents"),
