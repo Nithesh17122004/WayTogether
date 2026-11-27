@@ -59,6 +59,10 @@ services:
         sync: false
       - key: EMAIL_USE_TLS
         value: "true"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: "WayTogether <no-reply@waytogether.aclclouds.online>"
       - key: FINANCE_SANDBOX_ENABLED
         value: "false"
       - key: PRIVATE_MEDIA_STORAGE_READY
