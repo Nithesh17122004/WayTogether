@@ -1,0 +1,72 @@
+databases:
+  - name: waytogether-db
+    plan: free
+    region: singapore
+    databaseName: waytogether_db
+    user: waytogether_db_user
+
+services:
+  - type: web
+    name: waytogether-api
+    runtime: python
+    plan: free
+    region: singapore
+    branch: main
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /api/v1/health/
+    autoDeploy: true
+    envVars:
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        value: waytogether-api.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: waytogether-db
+          property: connectionString
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://waytogether-web.onrender.com
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://waytogether-web.onrender.com,https://waytogether-api.onrender.com
+      - key: DJANGO_SECURE_SSL_REDIRECT
+        value: "true"
+      - key: DJANGO_SECURE_PROXY_SSL_HEADER
+        value: "true"
+      - key: DJANGO_SECURE_HSTS_SECONDS
+        value: "31536000"
+      - key: DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS
+        value: "false"
+      - key: DJANGO_SECURE_HSTS_PRELOAD
+        value: "false"
+      - key: SMS_OTP_CONSOLE
+        value: "false"
+      - key: EMAIL_BACKEND
+        value: django.core.mail.backends.smtp.EmailBackend
+      - key: EMAIL_HOST
+        value: smtp.resend.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_HOST_USER
+        value: resend
+      - key: EMAIL_USE_TLS
+        value: "true"
+      - key: DEFAULT_FROM_EMAIL
+        value: WayTogether <onboarding@resend.dev>
+      - key: FINANCE_SANDBOX_ENABLED
+        value: "false"
+
+  - type: web
+    name: waytogether-web
+    runtime: static
+    branch: main
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://waytogether-api.onrender.com/api/v1
