@@ -92,9 +92,7 @@ class WayTogetherTokenSerializer(TokenObtainPairSerializer):
         user = self.user
         if not user.is_active:
             raise serializers.ValidationError("This account is inactive. Contact support.")
-        if not user.is_email_verified:
-            raise serializers.ValidationError(
-                {"verification_required": "Verify your email before signing in."}
-            )
+        # Allow sign-in before email OTP confirmation. The account remains
+        # restricted from verified-only actions until is_email_verified is True.
         data["user"] = UserPublicSerializer(user).data
         return data
