@@ -66,6 +66,7 @@ def _published_queryset():
             driver__is_active=True,
             driver__is_email_verified=True,
             driver__driver_profile__verification_status=DriverProfile.VerificationStatus.APPROVED,
+            driver__driver_profile__profile_photo__gt="",
             vehicle__verification_status=Vehicle.VerificationStatus.APPROVED,
         )
         .select_related("driver", "vehicle", "driver__driver_profile")
@@ -230,6 +231,7 @@ class JourneyDetailView(APIView):
                 and journey.driver.is_email_verified
                 and getattr(journey.driver, "driver_profile", None) is not None
                 and journey.driver.driver_profile.verification_status == DriverProfile.VerificationStatus.APPROVED
+                and bool(journey.driver.driver_profile.profile_photo)
                 and journey.vehicle.verification_status == Vehicle.VerificationStatus.APPROVED
                 and journey.travel_date >= timezone.localdate()
                 and (
