@@ -1,7 +1,13 @@
+from pathlib import Path
+import uuid
+
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
+
+from .validators import validate_masked_aadhaar_file, validate_passenger_photo
 
 
 class UserManager(BaseUserManager):
@@ -94,3 +100,57 @@ class VerificationCode(models.Model):
 
     def __str__(self):
         return f"{self.user.email} · {self.channel} · {self.created_at:%Y-%m-%d %H:%M}"
+
+
+
+def private_passenger_upload_to(instance, filename):
+    suffix = Path(filename).suffix.lower()
+    return f"private/passenger-verification/{instance.user_id}/{uuid.uuid4().hex}{suffix}"
+
+
+class PassengerVerification(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending review"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="passenger_verification",
+    )
+    # Store only a masked Aadhaar copy (first eight digits hidden). Never store
+    # the full Aadhaar number or biometric data in a database field.
+    masked_aadhaar_document = models.FileField(
+        upload_to=private_passenger_upload_to,
+        validators=[validate_masked_aadhaar_file],
+        max_length=255,
+    )
+    passenger_photo = models.FileField(
+        upload_to=private_passenger_upload_to,
+        validators=[validate_passenger_photo],
+        max_length=255,
+    )
+    masked_aadhaar_file_name = models.CharField(max_length=255)
+    passenger_photo_file_name = models.CharField(max_length=255)
+    consent_at = models.DateTimeField()
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    review_note = models.CharField(max_length=500, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_passenger_verifications",
+        null=True,
+        blank=True,
+    )
+    submitted_at = models.DateTimeField(auto_now=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("submitted_at",)
+        indexes = [
+            models.Index(fields=("status", "submitted_at"), name="passenger_kyc_queue_idx"),
+        ]
+
+    def __str__(self):
+        return f"Passenger verification: {self.user.email} · {self.status}"
