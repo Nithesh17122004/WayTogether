@@ -7,7 +7,12 @@ from django.db import models
 from django.utils import timezone
 from django.utils.text import get_valid_filename
 
-from .validators import validate_document_file
+from .validators import validate_document_file, validate_driver_profile_photo
+
+
+def private_driver_photo_upload_to(instance, filename):
+    suffix = Path(filename).suffix.lower()
+    return f"private/driver-profile/{instance.user_id}/{uuid.uuid4().hex}{suffix}"
 
 
 def private_document_upload_to(instance, filename):
@@ -29,6 +34,12 @@ class DriverProfile(models.Model):
         related_name="driver_profile",
     )
     bio = models.CharField(max_length=500, blank=True)
+    profile_photo = models.FileField(
+        upload_to=private_driver_photo_upload_to,
+        validators=[validate_driver_profile_photo],
+        blank=True,
+        max_length=255,
+    )
     city = models.CharField(max_length=100, blank=True)
     state = models.CharField(max_length=100, blank=True)
     verification_status = models.CharField(
