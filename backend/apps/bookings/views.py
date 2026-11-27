@@ -186,6 +186,7 @@ class BookingApproveView(APIView):
                 if (
                     not booking.passenger.is_active
                     or not booking.passenger.is_email_verified
+                    or getattr(getattr(booking.passenger, "passenger_verification", None), "status", None) != "approved"
                 ):
                     return Response(
                         {"detail": "The passenger account is no longer eligible for booking approval."},
