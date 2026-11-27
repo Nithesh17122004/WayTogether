@@ -36,6 +36,9 @@ class RegistrationAndVerificationTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 201)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+        self.assertTrue(response.data["email_verification_required"])
         user = User.objects.get(email="kamaresh@example.com")
         self.assertIsNone(user.phone)
         self.assertFalse(user.is_email_verified)
@@ -85,19 +88,28 @@ class RegistrationAndVerificationTests(APITestCase):
         self.assertEqual(duplicate_email.status_code, 400)
         self.assertEqual(duplicate_phone.status_code, 400)
 
-    def test_login_is_blocked_until_email_is_verified(self):
-        User.objects.create_user(
+    def test_login_is_allowed_before_email_verification_but_account_remains_unverified(self):
+        user = User.objects.create_user(
             email="kamaresh@example.com",
             phone="+919876543210",
             password="A-Strong-Unique-Password-928!",
         )
         response = self.client.post(
             "/api/v1/auth/login/",
-            {"email": "kamaresh@example.com", "password": "A-Strong-Unique-Password-928!"},
+            {"email": user.email, "password": "A-Strong-Unique-Password-928!"},
             format="json",
         )
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["verification_required"], "Verify your email before signing in.")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+        self.assertFalse(response.data["user"]["is_email_verified"])
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+        profile = self.client.get("/api/v1/auth/me/")
+        self.assertEqual(profile.status_code, 200)
+        self.assertFalse(profile.data["is_email_verified"])
+        user.refresh_from_db()
+        self.assertFalse(user.is_email_verified)
 
     def test_login_returns_tokens_and_profile_after_verification(self):
         user = User.objects.create_user(
