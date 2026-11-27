@@ -9,14 +9,14 @@ class UserAdmin(BaseUserAdmin):
     ordering = ("email",)
     list_display = (
         "email", "phone", "role", "is_email_verified",
-        "is_phone_verified", "is_active", "is_staff",
+        "is_active", "is_staff",
     )
-    list_filter = ("role", "is_email_verified", "is_phone_verified", "is_active", "is_staff")
+    list_filter = ("role", "is_email_verified", "is_active", "is_staff")
     search_fields = ("email", "phone", "first_name", "last_name")
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Personal information", {"fields": ("first_name", "last_name", "phone", "role")}),
-        ("Verification", {"fields": ("is_email_verified", "is_phone_verified", "terms_accepted_at")}),
+        ("Verification", {"fields": ("is_email_verified", "terms_accepted_at")}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
         ("Important dates", {"fields": ("last_login", "date_joined")}),
     )
