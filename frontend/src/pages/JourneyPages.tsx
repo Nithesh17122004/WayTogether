@@ -346,7 +346,7 @@ export function JourneyDetailContent() {
         <div className="wt-summary-line"><span>Passenger seats available</span><b>{journey.available_seats}</b></div>
         <div className="wt-summary-line"><span>Estimated distance</span><b>{journey.route_distance_km?journey.route_distance_km+" km":"Not available"}</b></div>
         <div className="wt-summary-line"><span>Estimated duration</span><b>{displayDuration(journey.route_duration_minutes)}</b></div>
-        <div className="wt-live-driver-profile"><span className="wt-live-avatar">{journey.driver_name.split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase()}</span><span><b>{journey.driver_name}</b><small><BadgeCheck size={12}/> Verified driver · {journey.vehicle_details.make} {journey.vehicle_details.model}</small></span></div>
+        <div className="wt-live-driver-profile"><DriverAvatar journey={journey}/><span><b>{journey.driver_name}</b><small><BadgeCheck size={12}/> Verified driver · {journey.vehicle_details.vehicle_type} · {journey.vehicle_details.passenger_seats} seats</small></span></div>
         {bookingError&&<PageNotice kind="error">{bookingError}</PageNotice>}
         {bookingNotice&&<PageNotice kind="success">{bookingNotice}</PageNotice>}
         {journey.available_seats>0?<form className="wt-booking-request-form" onSubmit={submitBooking}>
