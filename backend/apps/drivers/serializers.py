@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from django.utils import timezone
+
+from apps.accounts.models import User
 from rest_framework import serializers
 
 from .models import DriverProfile, Vehicle, VerificationDocument
@@ -13,18 +15,44 @@ class DriverProfileSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     profile_photo = serializers.FileField(write_only=True, required=False, validators=[validate_driver_profile_photo])
+    contact_phone = serializers.CharField(
+        source="user.phone",
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=16,
+    )
     driver_photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = DriverProfile
         fields = (
-            "id", "bio", "city", "state", "profile_photo", "driver_photo_url", "verification_status",
+            "id", "bio", "city", "state", "contact_phone", "profile_photo", "driver_photo_url", "verification_status",
             "verification_status_display", "submitted_at", "created_at", "updated_at",
         )
         read_only_fields = (
             "id", "driver_photo_url", "verification_status", "verification_status_display",
             "submitted_at", "created_at", "updated_at",
         )
+
+    def validate_contact_phone(self, value):
+        value = (value or "").strip()
+        if not value:
+            return None
+        import re
+        if not re.fullmatch(r"\+[1-9]\d{7,14}", value):
+            raise serializers.ValidationError("Use international format, for example +919876543210.")
+        request = self.context.get("request")
+        if request and User.objects.filter(phone=value).exclude(pk=request.user.pk).exists():
+            raise serializers.ValidationError("This contact number is already linked to another account.")
+        return value
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+        if "phone" in user_data:
+            instance.user.phone = user_data["phone"] or None
+            instance.user.save(update_fields=["phone"])
+        return super().update(instance, validated_data)
 
     def get_driver_photo_url(self, obj):
         if not obj.profile_photo:
