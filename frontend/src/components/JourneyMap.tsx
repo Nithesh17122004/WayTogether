@@ -41,7 +41,7 @@ export default function JourneyMap({
   ];
   // Use OSM tiles by default in production too; keep the provider configurable
   // so a dedicated tile service can replace it as traffic grows.
-  const tileUrl = import.meta.env.VITE_OSM_TILE_URL || "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const tileUrl = import.meta.env.VITE_OSM_TILE_URL || "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
   const tileAttribution = import.meta.env.VITE_OSM_TILE_ATTRIBUTION || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
   return <div className="wt-journey-map" style={{height}} aria-label="Journey map">

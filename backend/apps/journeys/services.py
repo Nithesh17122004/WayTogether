@@ -164,7 +164,21 @@ def search_locations(query):
 def get_route_preview(origin_lat, origin_lon, destination_lat, destination_lon):
     if not OSRM_ROUTE_URL:
         raise MapsProviderError("Road route preview is not configured on the server.")
-    coordinates = f"{origin_lon},{origin_lat};{destination_lon},{destination_lat}"
+
+    # Cache identical routes and stay within the public OSRM demo service's
+    # one-request-per-second limit across all application workers.
+    rounded = tuple(round(value, 5) for value in (
+        origin_lat, origin_lon, destination_lat, destination_lon,
+    ))
+    cache_key = "waytogether:route:" + ":".join(f"{value:.5f}" for value in rounded)
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    if not cache.add("waytogether:osrm:global-rate-limit", True, timeout=1):
+        raise MapsRateLimitError("A route was just calculated. Please wait a second and try again.")
+
+    coordinates = f"{rounded[1]},{rounded[0]};{rounded[3]},{rounded[2]}"
     try:
         response = requests.get(
             f"{OSRM_ROUTE_URL.rstrip('/')}/{coordinates}",
@@ -183,11 +197,13 @@ def get_route_preview(origin_lat, origin_lon, destination_lat, destination_lon):
         geometry = (route.get("geometry") or {}).get("coordinates") or []
         if len(geometry) < 2:
             raise MapsProviderError("The routing provider returned an incomplete route.")
-        return {
+        result = {
             "distance_km": round(route["distance"] / 1000, 2),
             "duration_minutes": round(route["duration"] / 60),
             "geometry": geometry,
         }
+        cache.set(cache_key, result, timeout=60 * 60 * 6)
+        return result
     except MapsProviderError:
         raise
     except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError) as exc:

@@ -1,6 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -355,6 +355,33 @@ class JourneyApiTests(APITestCase):
         with self.assertRaises(MapsRateLimitError):
             search_locations("Madurai")
 
+    @patch("apps.journeys.services.requests.get")
+    def test_location_search_falls_back_to_photon_when_nominatim_returns_invalid_json(self, request_mock):
+        cache.clear()
+        nominatim_response = Mock()
+        nominatim_response.raise_for_status.return_value = None
+        nominatim_response.json.side_effect = ValueError("not JSON")
+        photon_response = Mock()
+        photon_response.raise_for_status.return_value = None
+        photon_response.json.return_value = {
+            "features": [{
+                "properties": {
+                    "name": "Chennai",
+                    "city": "Chennai",
+                    "state": "Tamil Nadu",
+                    "country": "India",
+                },
+                "geometry": {"coordinates": [80.2707, 13.0827]},
+            }],
+        }
+        request_mock.side_effect = [nominatim_response, photon_response]
+
+        results = search_locations("Chennai Central")
+        self.assertEqual(request_mock.call_count, 2)
+        self.assertEqual(results[0]["name"], "Chennai")
+        self.assertAlmostEqual(results[0]["latitude"], 13.0827)
+        self.assertAlmostEqual(results[0]["longitude"], 80.2707)
+
     def test_route_preview_requires_configured_provider(self):
         with patch("apps.journeys.services.OSRM_ROUTE_URL", ""):
             with self.assertRaises(MapsProviderError):
@@ -369,9 +396,7 @@ class JourneyApiTests(APITestCase):
         search_mock.assert_called_once_with("Chennai")
 
     @patch("apps.journeys.views.get_route_preview")
-    def test_route_preview_returns_distance_duration_and_geometry(self, route_mock):
-        driver, _ = self.create_driver()
-        self.client.force_authenticate(driver)
+    def test_route_preview_is_public_and_returns_distance_duration_and_geometry(self, route_mock):
         route_mock.return_value = {
             "distance_km": 350.2,
             "duration_minutes": 380,
@@ -387,6 +412,26 @@ class JourneyApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["distance_km"], 350.2)
         route_mock.assert_called_once()
+
+    @patch("apps.journeys.services.requests.get")
+    def test_route_preview_caches_routes_and_enforces_global_rate_limit(self, request_mock):
+        cache.clear()
+        response = request_mock.return_value
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "routes": [{
+                "distance": 350200,
+                "duration": 22800,
+                "geometry": {"coordinates": [[80.27, 13.08], [77.59, 12.97]]},
+            }],
+        }
+        with patch("apps.journeys.services.OSRM_ROUTE_URL", "https://router.example/route/v1/driving"):
+            first = get_route_preview(13.08, 80.27, 12.97, 77.59)
+            second = get_route_preview(13.08, 80.27, 12.97, 77.59)
+            self.assertEqual(first, second)
+            self.assertEqual(request_mock.call_count, 1)
+            with self.assertRaises(MapsRateLimitError):
+                get_route_preview(12.91, 79.13, 12.74, 77.82)
 
 
 

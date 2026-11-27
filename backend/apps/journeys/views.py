@@ -118,6 +118,8 @@ class RoutePreviewView(APIView):
             return Response({"detail": "Longitude must be between -180 and 180."}, status=400)
         try:
             route = get_route_preview(origin_lat, origin_lon, destination_lat, destination_lon)
+        except MapsRateLimitError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         except MapsProviderError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response(route)

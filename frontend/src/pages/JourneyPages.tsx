@@ -101,6 +101,9 @@ export function JourneySearchContent() {
     if(!origin||!destination) { setError("Search and select both your starting point and destination."); return; }
     if(origin.latitude===destination.latitude&&origin.longitude===destination.longitude) { setError("Choose two different locations."); return; }
     setBusy(true);setError("");setSearched(true);
+    // The route preview is requested alongside the results so it appears
+    // automatically after the user searches, without blocking journey matching.
+    void buildSearchRoutePreview();
     try {
       const found = await searchJourneys({
         origin_lat:origin.latitude,origin_lon:origin.longitude,
