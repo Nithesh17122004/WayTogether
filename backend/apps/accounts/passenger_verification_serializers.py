@@ -8,7 +8,7 @@ from .validators import validate_masked_aadhaar_file, validate_passenger_photo
 
 class PassengerVerificationUploadSerializer(serializers.Serializer):
     masked_aadhaar_document = serializers.FileField(validators=[validate_masked_aadhaar_file])
-    passenger_photo = serializers.ImageField(validators=[validate_passenger_photo])
+    passenger_photo = serializers.FileField(validators=[validate_passenger_photo])
     consent = serializers.BooleanField()
 
     def validate_consent(self, value):
