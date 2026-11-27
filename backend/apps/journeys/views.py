@@ -280,6 +280,8 @@ class JourneyPublishView(APIView):
 
             if profile.verification_status != DriverProfile.VerificationStatus.APPROVED:
                 return Response({"detail": "Your driver verification must be approved before publishing."}, status=403)
+            if not profile.profile_photo:
+                return Response({"detail": "Upload a driver profile photo before publishing a journey."}, status=400)
             if journey.vehicle.verification_status != Vehicle.VerificationStatus.APPROVED:
                 return Response({"detail": "The selected vehicle must be approved before publishing."}, status=403)
             if journey.travel_date < timezone.localdate() or (
