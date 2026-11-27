@@ -132,6 +132,9 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT") or str(BASE_DIR / "media")).expanduser()
+# Keep all uploaded identity documents and profile photos disabled in production until a
+# durable private media backend or persistent disk has been configured.
+PRIVATE_MEDIA_STORAGE_READY = _env_bool("PRIVATE_MEDIA_STORAGE_READY", DEBUG)
 # Verification documents must only be served through the authenticated download API.
 # Never expose MEDIA_ROOT or MEDIA_URL through a public static/media route.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
