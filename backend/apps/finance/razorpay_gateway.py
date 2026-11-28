@@ -82,8 +82,11 @@ def fetch_payment(payment_id):
     return _request("GET", f"/payments/{payment_id}")
 
 
-def capture_payment(payment_id, amount_paise):
-    return _request("POST", f"/payments/{payment_id}/capture", payload={"amount": amount_paise})
+def capture_payment(payment_id, amount_paise, currency):
+    return _request(
+        "POST", f"/payments/{payment_id}/capture",
+        payload={"amount": amount_paise, "currency": currency},
+    )
 
 
 def verify_and_capture_payment(*, local_payment, gateway_payment_id, signature):
@@ -105,7 +108,7 @@ def verify_and_capture_payment(*, local_payment, gateway_payment_id, signature):
 
     provider_status = gateway_payment.get("status")
     if provider_status == "authorized":
-        gateway_payment = capture_payment(gateway_payment_id, expected_paise)
+        gateway_payment = capture_payment(gateway_payment_id, expected_paise, local_payment.currency)
         provider_status = gateway_payment.get("status")
 
     if provider_status != "captured":
