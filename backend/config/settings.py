@@ -132,9 +132,63 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT") or str(BASE_DIR / "media")).expanduser()
-# Keep all uploaded identity documents and profile photos disabled in production until a
-# durable private media backend or persistent disk has been configured.
-PRIVATE_MEDIA_STORAGE_READY = _env_bool("PRIVATE_MEDIA_STORAGE_READY", DEBUG)
+
+# Passenger identity documents use a dedicated private storage alias. In production,
+# uploads are enabled only when the operator explicitly opts in AND all S3-compatible
+# credentials are present. Cloudflare R2 is the documented provider; the S3-compatible
+# endpoint also allows another private object-storage provider if required.
+PRIVATE_MEDIA_BUCKET_NAME = os.getenv("PRIVATE_MEDIA_BUCKET_NAME", "").strip()
+PRIVATE_MEDIA_ENDPOINT_URL = os.getenv("PRIVATE_MEDIA_ENDPOINT_URL", "").strip().rstrip("/")
+PRIVATE_MEDIA_ACCESS_KEY_ID = os.getenv("PRIVATE_MEDIA_ACCESS_KEY_ID", "").strip()
+PRIVATE_MEDIA_SECRET_ACCESS_KEY = os.getenv("PRIVATE_MEDIA_SECRET_ACCESS_KEY", "")
+PRIVATE_MEDIA_REGION_NAME = os.getenv("PRIVATE_MEDIA_REGION_NAME", "auto").strip() or "auto"
+PRIVATE_MEDIA_S3_CONFIGURED = all((
+    PRIVATE_MEDIA_BUCKET_NAME,
+    PRIVATE_MEDIA_ENDPOINT_URL,
+    PRIVATE_MEDIA_ACCESS_KEY_ID,
+    PRIVATE_MEDIA_SECRET_ACCESS_KEY,
+))
+if PRIVATE_MEDIA_ENDPOINT_URL and not PRIVATE_MEDIA_ENDPOINT_URL.startswith("https://"):
+    raise ImproperlyConfigured("PRIVATE_MEDIA_ENDPOINT_URL must use HTTPS.")
+
+# Prevent a manually enabled feature flag from sending sensitive files to Render's
+# ephemeral local filesystem. Local development may use a private local folder.
+_PRIVATE_MEDIA_OPT_IN = _env_bool("PRIVATE_MEDIA_STORAGE_READY", DEBUG)
+PRIVATE_MEDIA_STORAGE_READY = _PRIVATE_MEDIA_OPT_IN and (DEBUG or PRIVATE_MEDIA_S3_CONFIGURED)
+
+if PRIVATE_MEDIA_S3_CONFIGURED:
+    # django-storages reads these settings when it creates the private S3 backend.
+    # Keep credentials in environment variables; do not pass them in model field
+    # declarations or migration files.
+    AWS_S3_ACCESS_KEY_ID = PRIVATE_MEDIA_ACCESS_KEY_ID
+    AWS_S3_SECRET_ACCESS_KEY = PRIVATE_MEDIA_SECRET_ACCESS_KEY
+    AWS_STORAGE_BUCKET_NAME = PRIVATE_MEDIA_BUCKET_NAME
+    AWS_S3_ENDPOINT_URL = PRIVATE_MEDIA_ENDPOINT_URL
+    AWS_S3_REGION_NAME = PRIVATE_MEDIA_REGION_NAME
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
+    AWS_S3_ADDRESSING_STYLE = "path"
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = True
+    AWS_S3_CUSTOM_DOMAIN = None
+    AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "private, no-store"}
+    passenger_private_storage = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "file_overwrite": False,
+            "default_acl": None,
+            "querystring_auth": True,
+            "querystring_expire": 60,
+            "custom_domain": None,
+            "object_parameters": {"CacheControl": "private, no-store"},
+        },
+    }
+else:
+    passenger_private_storage = {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {"location": str(MEDIA_ROOT / "private-passenger")},
+    }
+
 # Verification documents must only be served through the authenticated download API.
 # Never expose MEDIA_ROOT or MEDIA_URL through a public static/media route.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
@@ -143,6 +197,7 @@ FILE_UPLOAD_PERMISSIONS = 0o640
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o750
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "passenger_private": passenger_private_storage,
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 
