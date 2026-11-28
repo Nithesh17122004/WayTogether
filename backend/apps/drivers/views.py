@@ -63,7 +63,9 @@ class DriverProfileView(APIView):
         serializer = DriverProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(DriverProfileSerializer(profile, context={"request": request}).data)
+        data = DriverProfileSerializer(profile, context={"request": request}).data
+        data["uploads_enabled"] = settings.PRIVATE_MEDIA_STORAGE_READY
+        return Response(data)
 
 
 class VehicleListCreateView(generics.ListCreateAPIView):
