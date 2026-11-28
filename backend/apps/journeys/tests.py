@@ -285,7 +285,7 @@ class JourneyApiTests(APITestCase):
         self.create_approved_documents(driver, vehicle)
         journey = self.create_published_journey(driver, vehicle, timezone.localdate())
         journey.departure_time = (
-            timezone.localtime().time().replace(tzinfo=None) - timedelta(minutes=2)
+            (timezone.localtime() - timedelta(minutes=2)).time().replace(tzinfo=None)
         )
         journey.save(update_fields=["departure_time"])
 
