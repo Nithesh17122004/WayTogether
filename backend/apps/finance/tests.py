@@ -370,6 +370,7 @@ class FinanceApiTests(APITestCase):
             completed_at=timezone.now(),
         )
 
+        self.client.force_authenticate(self.passenger_one)
         released = self.client.get(f"/api/v1/bookings/{booking.pk}/")
         self.assertEqual(released.status_code, status.HTTP_200_OK)
         self.assertTrue(released.data["contact_details_released"])
