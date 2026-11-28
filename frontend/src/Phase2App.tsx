@@ -282,11 +282,12 @@ type DriverProfileRecord = {
 };
 type VehicleRecord = {
   id: number; registration_number: string; make: string; model: string;
-  manufacture_year: number; vehicle_type: string; passenger_seats: number;
+  manufacture_year: number; vehicle_category: string; vehicle_type: string; passenger_seats: number;
   private_use_attested: boolean; verification_status: string; verification_status_display: string;
 };
 type DriverDocumentRecord = {
   id: number; document_type: string; vehicle: number | null; vehicle_registration: string | null;
+  vehicle_category?: string | null; vehicle_type?: string | null;
   owner_name?: string; owner_email?: string;
   original_file_name: string; content_type: string; file_size: number; expiry_date: string | null;
   review_status: string; review_status_display: string; review_note: string;
@@ -514,13 +515,15 @@ function DriverVerificationPage() {
   const [error,setError] = useState("");
   const [notice,setNotice] = useState("");
   const [selectedVehicle,setSelectedVehicle] = useState("");
+  const [editingVehicleId,setEditingVehicleId] = useState<number|null>(null);
   const [documentType,setDocumentType] = useState("driver_license");
   const [file,setFile] = useState<File | null>(null);
   const [expiryDate,setExpiryDate] = useState("");
-  const [vehicleForm,setVehicleForm] = useState({
+  const emptyVehicleForm = () => ({
     registration_number:"",make:"",model:"",manufacture_year:String(new Date().getFullYear()-2),
-    colour:"",vehicle_type:"sedan",passenger_seats:"3",private_use_attested:false,
+    colour:"",vehicle_category:"four_wheeler",vehicle_type:"sedan",passenger_seats:"3",private_use_attested:false,
   });
+  const [vehicleForm,setVehicleForm] = useState(emptyVehicleForm);
 
   const load = async () => {
     setLoading(true); setError("");
@@ -543,23 +546,44 @@ function DriverVerificationPage() {
   };
   useEffect(()=>{ void load(); },[]);
 
-  const createVehicle = async (event:FormEvent<HTMLFormElement>) => {
+  const saveVehicle = async (event:FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
-      const result = await apiRequest<VehicleRecord>("/drivers/vehicles/",{
-        method:"POST",
-        body:JSON.stringify({
-          ...vehicleForm,
-          manufacture_year:Number(vehicleForm.manufacture_year),
-          passenger_seats:Number(vehicleForm.passenger_seats),
-        }),
-      },true);
-      setNotice("Vehicle " + result.registration_number + " added. Upload its documents to continue.");
-      setVehicleForm({registration_number:"",make:"",model:"",manufacture_year:String(new Date().getFullYear()-2),colour:"",vehicle_type:"sedan",passenger_seats:"3",private_use_attested:false});
+      const payload = {
+        ...vehicleForm,
+        manufacture_year:Number(vehicleForm.manufacture_year),
+        passenger_seats:Number(vehicleForm.passenger_seats),
+      };
+      const result = await apiRequest<VehicleRecord>(
+        editingVehicleId ? "/drivers/vehicles/"+editingVehicleId+"/" : "/drivers/vehicles/",
+        {method:editingVehicleId ? "PATCH" : "POST",body:JSON.stringify(payload)},
+        true,
+      );
+      setNotice(editingVehicleId
+        ? "Vehicle details updated. Its current documents have been returned to admin review."
+        : "Vehicle " + result.registration_number + " added. Upload its RC and insurance to complete verification.");
       setSelectedVehicle(String(result.id));
+      setEditingVehicleId(null);
+      setVehicleForm(emptyVehicleForm());
       await load();
     } catch(err) { setError(err instanceof Error ? err.message : "Vehicle could not be saved."); }
     finally { setBusy(false); }
+  };
+
+  const editVehicle = (vehicle:VehicleRecord) => {
+    setEditingVehicleId(vehicle.id);
+    setSelectedVehicle(String(vehicle.id));
+    setVehicleForm({
+      registration_number:vehicle.registration_number,
+      make:vehicle.make,
+      model:vehicle.model,
+      manufacture_year:String(vehicle.manufacture_year),
+      colour:"",
+      vehicle_category:vehicle.vehicle_category ?? "four_wheeler",
+      vehicle_type:vehicle.vehicle_type,
+      passenger_seats:String(vehicle.passenger_seats),
+      private_use_attested:true,
+    });
   };
 
   const uploadDocument = async (event:FormEvent<HTMLFormElement>) => {
@@ -585,23 +609,22 @@ function DriverVerificationPage() {
     finally { setBusy(false); }
   };
 
-  const submitVehicle = async (vehicleId:number) => {
-    setBusy(true); setError(""); setNotice("");
-    try {
-      const result = await apiRequest<{detail:string;driver_status:string;vehicle_status:string;missing_documents?:string[]}>(
-        "/drivers/verification/submit/",
-        {method:"POST",body:JSON.stringify({vehicle_id:vehicleId})},
-        true,
-      );
-      setNotice(result.detail);
-      await load();
-    } catch(err) { setError(err instanceof Error ? err.message : "Could not submit for review."); await load(); }
-    finally { setBusy(false); }
-  };
-
   const currentDocs = documents.filter(doc=>doc.is_current);
-  const licenseUploaded = currentDocs.some(doc=>doc.document_type==="driver_license");
-  const driverPhotoUploaded = currentDocs.some(doc=>doc.document_type==="driver_photo");
+  const currentDocumentStatus = (type:string,vehicleId?:string) => {
+    const doc = currentDocs.find(item =>
+      item.document_type===type &&
+      (vehicleId ? String(item.vehicle)===vehicleId : item.vehicle===null)
+    );
+    return doc?.review_status ?? "not_uploaded";
+  };
+  const requiredDriverRows = [
+    {label:"Driving licence",status:currentDocumentStatus("driver_license")},
+    {label:"Driver face photo",status:currentDocumentStatus("driver_photo")},
+  ];
+  const selectedVehicleRows = [
+    {label:"Registration certificate (RC)",status:currentDocumentStatus("vehicle_registration",selectedVehicle)},
+    {label:"Insurance certificate",status:currentDocumentStatus("insurance",selectedVehicle)},
+  ];
   return <DashboardLayout role="Driver"><div className="wt-dash-heading"><div><Eyebrow>DRIVER VERIFICATION</Eyebrow><h1>Verify your driver profile.</h1><p>Add your vehicle and submit the required documents for administrator review.</p></div><PreviewLabel/></div>
     <div className="wt-verification-intro"><ShieldCheck/><div><b>Private document handling</b><small>Your uploaded documents are stored privately. Only your account and authorised platform administrators can access them through the protected document endpoint.</small></div><StatusPill status={profile?.verification_status ?? "draft"}/></div>
     {error&&<p className="wt-auth-error" role="alert">{error}</p>}{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
@@ -621,17 +644,18 @@ function DriverVerificationPage() {
 
       <section className="wt-panel wt-verification-card">
         <div className="wt-panel-heading"><div><h2>Your vehicles</h2><p>Register a privately used vehicle. It must not be offered as a commercial taxi through this platform.</p></div></div>
-        {vehicles.length>0&&<div className="wt-vehicle-list">{vehicles.map(vehicle=><article className="wt-vehicle-row" key={vehicle.id}><span className="wt-vehicle-icon"><CarFront/></span><div><b>{vehicle.registration_number} · {vehicle.make} {vehicle.model}</b><small>{vehicle.manufacture_year} · {vehicle.vehicle_type.toUpperCase()} · {vehicle.passenger_seats} passenger seats</small></div><StatusPill status={vehicle.verification_status}/><button className="wt-link-button" type="button" onClick={()=>setSelectedVehicle(String(vehicle.id))}>Select</button></article>)}</div>}
-        <form className="wt-form-grid wt-vehicle-form" onSubmit={createVehicle}>
+        {vehicles.length>0&&<div className="wt-vehicle-list">{vehicles.map(vehicle=><article className="wt-vehicle-row" key={vehicle.id}><span className="wt-vehicle-icon"><CarFront/></span><div><b>{vehicle.registration_number} · {vehicle.make} {vehicle.model}</b><small>{vehicle.manufacture_year} · {vehicle.vehicle_category==="two_wheeler"?"TWO-WHEELER":"FOUR-WHEELER"} · {vehicle.vehicle_type.toUpperCase()} · {vehicle.passenger_seats} passenger seat(s)</small></div><StatusPill status={vehicle.verification_status}/><button className="wt-link-button" type="button" onClick={()=>editVehicle(vehicle)}>Edit</button><button className="wt-link-button" type="button" onClick={()=>setSelectedVehicle(String(vehicle.id))}>Select</button></article>)}</div>}
+        <form className="wt-form-grid wt-vehicle-form" onSubmit={saveVehicle}>
           <label className="wt-field"><span>Registration number</span><input value={vehicleForm.registration_number} onChange={e=>setVehicleForm(v=>({...v,registration_number:e.target.value}))} placeholder="TN01AB1234" required/></label>
           <label className="wt-field"><span>Make</span><input value={vehicleForm.make} onChange={e=>setVehicleForm(v=>({...v,make:e.target.value}))} placeholder="Honda" required/></label>
           <label className="wt-field"><span>Model</span><input value={vehicleForm.model} onChange={e=>setVehicleForm(v=>({...v,model:e.target.value}))} placeholder="City" required/></label>
           <label className="wt-field"><span>Manufacture year</span><input type="number" min="1980" max="2100" value={vehicleForm.manufacture_year} onChange={e=>setVehicleForm(v=>({...v,manufacture_year:e.target.value}))} required/></label>
-          <label className="wt-field"><span>Vehicle type</span><select value={vehicleForm.vehicle_type} onChange={e=>setVehicleForm(v=>({...v,vehicle_type:e.target.value}))}><option value="hatchback">Hatchback</option><option value="sedan">Sedan</option><option value="suv">SUV</option><option value="muv">MUV</option><option value="other">Other</option></select></label>
-          <label className="wt-field"><span>Passenger seats available</span><select value={vehicleForm.passenger_seats} onChange={e=>setVehicleForm(v=>({...v,passenger_seats:e.target.value}))}>{[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
+          <label className="wt-field"><span>Wheel category</span><select value={vehicleForm.vehicle_category} onChange={e=>setVehicleForm(v=>({...v,vehicle_category:e.target.value,vehicle_type:e.target.value==="two_wheeler"?"motorcycle":"sedan",passenger_seats:e.target.value==="two_wheeler"?"1":"3"}))}><option value="two_wheeler">Two-wheeler</option><option value="four_wheeler">Four-wheeler</option></select></label>
+          <label className="wt-field"><span>{vehicleForm.vehicle_category==="two_wheeler"?"Two-wheeler type":"Four-wheeler body type"}</span><select value={vehicleForm.vehicle_type} onChange={e=>setVehicleForm(v=>({...v,vehicle_type:e.target.value}))}>{vehicleForm.vehicle_category==="two_wheeler"?<><option value="motorcycle">Motorcycle</option><option value="scooter">Scooter</option><option value="other">Other</option></>:<><option value="hatchback">Hatchback</option><option value="sedan">Sedan</option><option value="suv">SUV</option><option value="muv">MUV</option><option value="other">Other</option></>}</select></label>
+          <label className="wt-field"><span>Passenger seats available</span><select value={vehicleForm.passenger_seats} onChange={e=>setVehicleForm(v=>({...v,passenger_seats:e.target.value}))}>{(vehicleForm.vehicle_category==="two_wheeler"?[1]:[1,2,3,4,5,6,7,8]).map(n=><option key={n} value={n}>{n}</option>)}</select><small>{vehicleForm.vehicle_category==="two_wheeler"?"One pillion passenger seat maximum.":"Enter the number of passenger seats you are making available."}</small></label>
           <label className="wt-field"><span>Colour (optional)</span><input value={vehicleForm.colour} onChange={e=>setVehicleForm(v=>({...v,colour:e.target.value}))} placeholder="Blue"/></label>
           <label className="wt-private-attest"><input type="checkbox" checked={vehicleForm.private_use_attested} onChange={e=>setVehicleForm(v=>({...v,private_use_attested:e.target.checked}))}/><span>I confirm this is a privately used vehicle and I am not registering it as a commercial taxi.</span></label>
-          <button className="wt-btn wt-btn-primary" disabled={busy}>Add vehicle <Plus size={15}/></button>
+          <button className="wt-btn wt-btn-primary" disabled={busy}>{editingVehicleId?"Save vehicle changes":"Add vehicle"} <Plus size={15}/></button>{editingVehicleId&&<button className="wt-btn wt-btn-outline" type="button" disabled={busy} onClick={()=>{setEditingVehicleId(null);setVehicleForm(emptyVehicleForm());}}>Cancel edit</button>}
         </form>
       </section>
 
@@ -644,15 +668,13 @@ function DriverVerificationPage() {
           <label className="wt-field wt-file-field"><span>Select document file</span><input id="wt-driver-document-file" type="file" accept={documentType==="driver_photo"?".jpg,.jpeg,.png,image/jpeg,image/png":".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"} onChange={e=>setFile(e.target.files?.[0]??null)} required/><small>{file ? file.name : "Choose a file from your device"}</small></label>
           <button className="wt-btn wt-btn-primary" disabled={busy||!profile?.uploads_enabled||(!vehicles.length&&!["driver_license","driver_photo"].includes(documentType))}>Upload document <ArrowUpRight size={15}/></button>
         </form>
-        <div className="wt-required-docs"><b>Required before submitting a vehicle</b><div className="wt-required-grid">
-          {[["Driving licence",licenseUploaded],["Driver face photo",driverPhotoUploaded],["Vehicle registration",currentDocs.some(d=>d.document_type==="vehicle_registration"&&String(d.vehicle)===selectedVehicle)],["Insurance certificate",currentDocs.some(d=>d.document_type==="insurance"&&String(d.vehicle)===selectedVehicle)],["Vehicle photograph",currentDocs.some(d=>d.document_type==="vehicle_photo"&&String(d.vehicle)===selectedVehicle)]].map(([label,done])=><span key={String(label)} className={done?"is-uploaded":""}>{done?<Check size={13}/>:<FileCheck2 size={13}/>} {label}</span>)}
-        </div><small>Pollution certificate can also be uploaded where applicable. Document completeness is checked before submission; approval requires administrator review.</small></div>
+        <div className="wt-required-docs"><b>Required documents for driver verification</b><small>Each required file is sent to the admin queue immediately after upload. Every file is approved or rejected independently.</small><div className="wt-required-grid">{requiredDriverRows.map(item=><span key={item.label}>{item.label} <StatusPill status={item.status}/></span>)}</div><b>Required documents for {vehicles.find(v=>String(v.id)===selectedVehicle)?.registration_number??"selected vehicle"}</b><div className="wt-required-grid">{selectedVehicleRows.map(item=><span key={item.label}>{item.label} <StatusPill status={item.status}/></span>)}</div><small>Mandatory: driver licence, driver face photo, RC and insurance. Optional: pollution certificate and vehicle photograph. Overall verification stays pending until all required documents are approved.</small></div>
         {currentDocs.length>0&&<div className="wt-document-list"><b>Uploaded documents</b>{currentDocs.map(doc=><div className="wt-document-row" key={doc.id}><FileCheck2 size={17}/><span><b>{documentLabels[doc.document_type]??doc.document_type}</b><small>{doc.original_file_name} · {doc.vehicle_registration??"Driver document"}{doc.review_note ? " · " + doc.review_note : ""}</small></span><StatusPill status={doc.review_status}/><button className="wt-link-button" type="button" onClick={async()=>{try{await downloadPrivateFile("/drivers/documents/"+doc.id+"/download/",doc.original_file_name);}catch(err){setError(err instanceof Error?err.message:"Download failed.");}}}>Download</button></div>)}</div>}
       </section>
 
       <section className="wt-panel wt-submit-verification">
-        <div><h3>Submit a vehicle for verification</h3><p>Upload your driving licence and face photo, then submit each vehicle with its RC, insurance and vehicle photo.</p></div>
-        {vehicles.length===0?<span className="wt-muted">Add a vehicle first.</span>:vehicles.map(vehicle=><div className="wt-submit-row" key={vehicle.id}><span><b>{vehicle.registration_number}</b><small>{vehicle.make} {vehicle.model}</small></span><StatusPill status={vehicle.verification_status}/><button className="wt-btn wt-btn-primary" type="button" disabled={busy||!profile?.uploads_enabled||vehicle.verification_status==="approved"} onClick={()=>submitVehicle(vehicle.id)}>Submit for review <ArrowRight size={15}/></button></div>)}
+        <div><h3>Verification progress</h3><p>There is no separate bundle-submit step. Uploads enter the admin review queue one at a time, and each decision updates your progress.</p></div>
+        {vehicles.length===0?<span className="wt-muted">Add your privately used vehicle first.</span>:vehicles.map(vehicle=><div className="wt-submit-row" key={vehicle.id}><span><b>{vehicle.registration_number} · {vehicle.make} {vehicle.model}</b><small>RC: {currentDocumentStatus("vehicle_registration",String(vehicle.id)).replaceAll("_"," ")} · Insurance: {currentDocumentStatus("insurance",String(vehicle.id)).replaceAll("_"," ")}</small></span><StatusPill status={vehicle.verification_status}/><button className="wt-link-button" type="button" onClick={()=>setSelectedVehicle(String(vehicle.id))}>View documents</button></div>)}
       </section>
     </>}
   </DashboardLayout>;
@@ -688,7 +710,7 @@ function AdminVerificationPage() {
     {error&&<p className="wt-auth-error" role="alert">{error}</p>}{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
     <div className="wt-verification-intro"><ShieldCheck/><div><b>Restricted document access</b><small>Only staff accounts can view the review queue and download submitted files. Each review decision is recorded with the reviewer and timestamp.</small></div><span className="wt-queue-count">{queue.length} pending</span></div>
     <section className="wt-panel wt-admin-queue"><div className="wt-panel-heading"><div><h2>Pending documents</h2><p>Approve only after checking the document and its validity.</p></div><button className="wt-btn wt-btn-outline" type="button" onClick={load}>Refresh</button></div>
-      {loading?<p className="wt-queue-empty">Loading verification queue…</p>:queue.length===0?<div className="wt-queue-empty"><Check/><b>No pending documents</b><small>New driver submissions will appear here.</small></div>:queue.map(doc=><article className="wt-admin-document" key={doc.id}><div className="wt-admin-document-head"><span className="wt-doc-icon"><FileCheck2/></span><div><b>{documentLabels[doc.document_type]??doc.document_type}</b><small>{doc.owner_name} · {doc.owner_email}</small></div><StatusPill status={doc.review_status}/></div><div className="wt-admin-document-meta"><span>Vehicle: <b>{doc.vehicle_registration??"Driver licence"}</b></span><span>File: <b>{doc.original_file_name}</b></span><span>Uploaded: <b>{new Date(doc.uploaded_at).toLocaleDateString("en-IN")}</b></span><span>Expiry: <b>{doc.expiry_date??"Not supplied"}</b></span></div><div className="wt-admin-review-actions"><button className="wt-link-button" type="button" onClick={async()=>{try{await downloadPrivateFile("/drivers/documents/"+doc.id+"/download/",doc.original_file_name);}catch(err){setError(err instanceof Error?err.message:"Download failed.");}}}>Download private file</button><input value={notes[doc.id]??""} onChange={e=>setNotes(n=>({...n,[doc.id]:e.target.value}))} placeholder="Rejection reason (required to reject)"/><button className="wt-btn wt-btn-outline" disabled={busyId===doc.id} onClick={()=>review(doc,"rejected")}>Reject</button><button className="wt-btn wt-btn-primary" disabled={busyId===doc.id} onClick={()=>review(doc,"approved")}>Approve <Check size={14}/></button></div></article>)}
+      {loading?<p className="wt-queue-empty">Loading verification queue…</p>:queue.length===0?<div className="wt-queue-empty"><Check/><b>No pending documents</b><small>New driver submissions will appear here.</small></div>:queue.map(doc=><article className="wt-admin-document" key={doc.id}><div className="wt-admin-document-head"><span className="wt-doc-icon"><FileCheck2/></span><div><b>{documentLabels[doc.document_type]??doc.document_type}</b><small>{doc.owner_name} · {doc.owner_email}</small></div><StatusPill status={doc.review_status}/></div><div className="wt-admin-document-meta"><span>Vehicle: <b>{doc.vehicle_registration ? doc.vehicle_registration+" · "+(doc.vehicle_category==="two_wheeler"?"Two-wheeler":"Four-wheeler") : "Driver-level document"}</b></span><span>File: <b>{doc.original_file_name}</b></span><span>Uploaded: <b>{new Date(doc.uploaded_at).toLocaleDateString("en-IN")}</b></span><span>Expiry: <b>{doc.expiry_date??"Not supplied"}</b></span></div><div className="wt-admin-review-actions"><button className="wt-link-button" type="button" onClick={async()=>{try{await downloadPrivateFile("/drivers/documents/"+doc.id+"/download/",doc.original_file_name);}catch(err){setError(err instanceof Error?err.message:"Download failed.");}}}>Download private file</button><input value={notes[doc.id]??""} onChange={e=>setNotes(n=>({...n,[doc.id]:e.target.value}))} placeholder="Rejection reason (required to reject)"/><button className="wt-btn wt-btn-outline" disabled={busyId===doc.id} onClick={()=>review(doc,"rejected")}>Reject</button><button className="wt-btn wt-btn-primary" disabled={busyId===doc.id} onClick={()=>review(doc,"approved")}>Approve <Check size={14}/></button></div></article>)}
     </section>
   </DashboardLayout>;
 }
