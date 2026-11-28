@@ -306,6 +306,7 @@ function StatusPill({status}:{status:string}) {
 
 type PassengerKycStatus = {
   status: string;
+  uploads_enabled: boolean;
   review_note?: string;
   submitted_at?: string | null;
   reviewed_at?: string | null;
@@ -324,7 +325,7 @@ type AdminPassengerKycRecord = {
 };
 
 function PassengerVerificationPage() {
-  const [verification,setVerification] = useState<PassengerKycStatus>({status:"not_submitted"});
+  const [verification,setVerification] = useState<PassengerKycStatus>({status:"not_submitted",uploads_enabled:false});
   const [aadhaarFile,setAadhaarFile] = useState<File|null>(null);
   const [photoFile,setPhotoFile] = useState<File|null>(null);
   const [consent,setConsent] = useState(false);
@@ -374,6 +375,7 @@ function PassengerVerificationPage() {
     <div className="wt-dash-heading"><div><Eyebrow>PASSENGER IDENTITY</Eyebrow><h1>Verify your passenger profile.</h1><p>Submit your identity proof and a clear profile photo for manual review.</p></div><StatusPill status={verification.status}/></div>
     <div className="wt-verification-intro"><ShieldCheck/><div><b>Private manual verification</b><small>Files are private and available only to you and authorised administrators. Do not upload a full unmasked Aadhaar number or biometric data.</small></div><StatusPill status={verification.status}/></div>
     {error&&<p className="wt-auth-error" role="alert">{error}</p>}{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
+    {!loading&&!verification.uploads_enabled&&<div className="wt-market-notice info" role="status"><b>Identity uploads are temporarily unavailable.</b> WayTogether must finish configuring private persistent document storage before accepting identity files. Your selected documents have not been submitted or saved. Please do not retry until this notice disappears.</div>}
     {loading?<div className="wt-panel wt-verification-loading">Loading your verification status…</div>:<>
       {verification.review_note&&<div className="wt-market-notice info">Administrator note: {verification.review_note}</div>}
       <section className="wt-panel wt-verification-card">
@@ -382,7 +384,7 @@ function PassengerVerificationPage() {
           <label className="wt-field wt-file-field"><span>Masked Aadhaar proof (PDF, JPG or PNG)</span><input id="wt-passenger-aadhaar" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>setAadhaarFile(e.target.files?.[0]??null)} required/><small>{aadhaarFile?.name??"Upload a copy with the first eight Aadhaar digits hidden"}</small></label>
           <label className="wt-field wt-file-field"><span>Passenger photo (JPG or PNG)</span><input id="wt-passenger-photo" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={e=>setPhotoFile(e.target.files?.[0]??null)} required/><small>{photoFile?.name??"Upload a recent, clear face photo"}</small></label>
           <label className="wt-private-attest"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>I consent to WayTogether using these documents for passenger identity verification, restricting access to authorised reviewers, and retaining them only as required for this verification purpose.</span></label>
-          <button className="wt-btn wt-btn-primary" disabled={busy||!consent}>{busy?"Submitting…":"Submit for manual verification"} <ArrowRight size={15}/></button>
+          <button className="wt-btn wt-btn-primary" disabled={busy||!consent||!verification.uploads_enabled}>{busy?"Submitting…":"Submit for manual verification"} <ArrowRight size={15}/></button>
         </form>
         <p className="wt-legal-small">Only upload a masked Aadhaar document with the first eight digits redacted. Never enter a 12-digit Aadhaar number into the app. You can resubmit if a reviewer rejects the documents.</p>
       </section>

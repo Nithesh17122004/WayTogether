@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 from unittest.mock import Mock, patch
 
-from .models import User, VerificationCode
+from .models import PassengerVerification, User, VerificationCode
 from .services import issue_verification_code, verify_code
 
 
@@ -274,3 +274,34 @@ class ResendEmailDeliveryTests(TestCase):
                 verified_at__isnull=True,
             ).exists()
         )
+
+
+
+class PassengerVerificationStorageGateTests(APITestCase):
+    def setUp(self):
+        self.passenger = User.objects.create_user(
+            email="passenger-storage@example.com",
+            password="A-Strong-Unique-Password-928!",
+            role=User.Role.PASSENGER,
+        )
+        self.client.force_authenticate(user=self.passenger)
+
+    @override_settings(PRIVATE_MEDIA_STORAGE_READY=False)
+    def test_status_reports_that_private_uploads_are_unavailable(self):
+        response = self.client.get("/api/v1/auth/passenger-verification/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "not_submitted")
+        self.assertFalse(response.data["uploads_enabled"])
+
+    @override_settings(PRIVATE_MEDIA_STORAGE_READY=False)
+    def test_upload_is_rejected_before_any_verification_record_is_saved(self):
+        response = self.client.post(
+            "/api/v1/auth/passenger-verification/",
+            {},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("private persistent file storage", response.data["detail"])
+        self.assertFalse(PassengerVerification.objects.filter(user=self.passenger).exists())

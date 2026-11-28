@@ -77,8 +77,19 @@ services:
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
+      # Keep identity uploads disabled until a private bucket has been created and credentials added.
       - key: PRIVATE_MEDIA_STORAGE_READY
-        value: "false"
+        sync: false
+      - key: PRIVATE_MEDIA_BUCKET_NAME
+        sync: false
+      - key: PRIVATE_MEDIA_ENDPOINT_URL
+        sync: false
+      - key: PRIVATE_MEDIA_ACCESS_KEY_ID
+        sync: false
+      - key: PRIVATE_MEDIA_SECRET_ACCESS_KEY
+        sync: false
+      - key: PRIVATE_MEDIA_REGION_NAME
+        value: "auto"
 
   - type: web
     name: waytogether-web

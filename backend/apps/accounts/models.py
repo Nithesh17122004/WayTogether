@@ -7,6 +7,7 @@ from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
+from .storage import get_private_passenger_storage
 from .validators import validate_masked_aadhaar_file, validate_passenger_photo
 
 
@@ -123,11 +124,13 @@ class PassengerVerification(models.Model):
     # the full Aadhaar number or biometric data in a database field.
     masked_aadhaar_document = models.FileField(
         upload_to=private_passenger_upload_to,
+        storage=get_private_passenger_storage,
         validators=[validate_masked_aadhaar_file],
         max_length=255,
     )
     passenger_photo = models.FileField(
         upload_to=private_passenger_upload_to,
+        storage=get_private_passenger_storage,
         validators=[validate_passenger_photo],
         max_length=255,
     )
