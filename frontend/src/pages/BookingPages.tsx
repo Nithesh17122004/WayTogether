@@ -67,11 +67,11 @@ export function PassengerBookingsContent() {
         {booking.status==="confirmed"&&!booking.contact_details_released&&<p className="wt-booking-footnote">Phone numbers remain private until this confirmed booking has a successful, verified Razorpay payment.</p>}
         {booking.request_message&&<p className="wt-booking-message">Your note: {booking.request_message}</p>}
         {booking.driver_response&&<p className="wt-booking-message driver">Driver response: {booking.driver_response}</p>}
-        {booking.status==="confirmed"&&<div className="wt-booking-contribution"><span>Current provisional expense share</span><b>{money(booking.estimated_contribution_total)}</b><small>{money(booking.estimated_contribution_per_passenger)} per passenger · may be recalculated as other seats are confirmed</small></div>}
-        {booking.status==="pending"&&<p className="wt-booking-footnote">Waiting for the driver to approve or decline. These seats are not reserved yet.</p>}
+        {(booking.status==="pending"||booking.status==="confirmed")&&<div className="wt-booking-contribution"><span>Passenger total · {booking.seats_requested} seat(s)</span><b>{money(booking.estimated_contribution_total)}</b><small>Driver amount: {money(booking.driver_amount_total)} · Platform fee (30%): {money(booking.platform_fee_total)} · {money(booking.passenger_total_per_passenger)} per seat</small></div>}
+        {booking.status==="pending"&&<p className="wt-booking-footnote">Waiting for the driver to approve or decline. These seats are not reserved yet. The shown price is the published estimate.</p>}
         <div className="wt-booking-actions"><Link to={"/journeys/"+booking.journey_id} className="wt-text-link">View journey details</Link>{(booking.status==="pending"||booking.status==="confirmed")&&<button type="button" className="wt-btn wt-btn-outline" disabled={busyId===booking.id} onClick={()=>cancel(booking)}><XCircle size={14}/> Cancel request</button>}</div>
       </article>)}</div>}
-    <p className="wt-market-footnote">Contribution values are estimates for eligible shared journey expenses only. No payment or refund is processed in this phase.</p>
+    <p className="wt-market-footnote">Passenger totals include the driver's published per-seat amount plus the separately disclosed 30% platform fee. Any payment remains restricted to Razorpay Test Mode until the operating model and launch approvals are complete.</p>
   </div>;
 }
 
@@ -119,7 +119,7 @@ export function DriverBookingRequestsContent() {
         {booking.contact_details_released&&booking.passenger_phone&&<div className="wt-verification-intro"><ShieldCheck/><div><b>Passenger contact details</b><small><a href={"tel:"+booking.passenger_phone}>{booking.passenger_phone}</a> · shared after verified payment</small></div></div>}
         {booking.status==="confirmed"&&!booking.contact_details_released&&<p className="wt-booking-footnote">Phone numbers remain private until this confirmed booking has a successful, verified Razorpay payment.</p>}
         {booking.request_message&&<p className="wt-booking-message">Passenger note: {booking.request_message}</p>}
-        {booking.status==="confirmed"&&<div className="wt-booking-contribution"><span>Current provisional expense share</span><b>{money(booking.estimated_contribution_total)}</b><small>{money(booking.estimated_contribution_per_passenger)} per passenger · recalculated when confirmed occupancy changes</small></div>}
+        {(booking.status==="pending"||booking.status==="confirmed")&&<div className="wt-booking-contribution"><span>Passenger total · {booking.seats_requested} seat(s)</span><b>{money(booking.estimated_contribution_total)}</b><small>Driver amount: {money(booking.driver_amount_total)} · Platform fee (30%): {money(booking.platform_fee_total)} · {money(booking.passenger_total_per_passenger)} per seat</small></div>}
         {booking.status==="pending"&&<>
           <label className="wt-field wt-booking-response"><span>Optional response to passenger</span><input value={responses[booking.id]??""} onChange={e=>setResponses(v=>({...v,[booking.id]:e.target.value}))} maxLength={500} placeholder="Add a pickup instruction or response"/></label>
           <div className="wt-booking-actions"><button type="button" className="wt-btn wt-btn-outline" disabled={busyId===booking.id} onClick={()=>decide(booking,"decline")}>Decline</button><button type="button" className="wt-btn wt-btn-primary" disabled={busyId===booking.id} onClick={()=>decide(booking,"approve")}><Check size={14}/> Approve and reserve seats</button></div>
