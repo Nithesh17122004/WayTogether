@@ -1,6 +1,6 @@
-# Private passenger identity document storage
+# Private passenger and driver identity document storage
 
-Passenger Aadhaar proofs and face photos must not be written to the Render web service's ephemeral filesystem or exposed through a public bucket. This integration uses a dedicated Django storage alias for passenger verification only. The authenticated API streams a document to its owner or a staff reviewer; the frontend never receives a public object URL.
+Passenger Aadhaar proofs, passenger face photos, driving licences, driver face photos, RCs, insurance documents and vehicle photographs must not be written to the Render web service's ephemeral filesystem or exposed through a public bucket. This integration uses a dedicated Django storage alias for passenger verification only. The authenticated API streams a document to its owner or a staff reviewer; the frontend never receives a public object URL.
 
 ## Create a private Cloudflare R2 bucket
 
@@ -26,6 +26,10 @@ Open the **waytogether-api** web service in Render and add these environment var
 | `PRIVATE_MEDIA_STORAGE_READY` | `true` — set this last, after verifying all preceding values |
 
 Save the environment changes and wait for the API service to finish redeploying. The backend will not report uploads as enabled unless the explicit flag is true and the bucket name, HTTPS endpoint, access key, and secret are all present. Setting the flag alone cannot activate uploads.
+
+## Driver and passenger uploads
+
+The API uses the same private bucket configuration for a separate driver storage alias. Driver verification uploads (licence, driver face photo, RC, insurance and vehicle photo) remain disabled until all private storage variables are configured and `PRIVATE_MEDIA_STORAGE_READY=true`. The driver face photo must be JPG or PNG and is shown publicly only after manual approval and only while the driver has a published upcoming journey.
 
 ## Security and verification
 
