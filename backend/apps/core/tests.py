@@ -56,6 +56,7 @@ class AdminWorkspaceAPITests(APITestCase):
             "/api/v1/admin/journeys/",
             "/api/v1/admin/bookings/",
             "/api/v1/admin/expense-ledger/",
+            "/api/v1/admin/database-cleanup/",
         ):
             with self.subTest(path=path):
                 response = self.client.get(path)
