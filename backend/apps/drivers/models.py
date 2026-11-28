@@ -116,6 +116,7 @@ class VerificationDocument(models.Model):
         INSURANCE = "insurance", "Insurance certificate"
         POLLUTION_CERTIFICATE = "pollution_certificate", "Pollution certificate"
         VEHICLE_PHOTO = "vehicle_photo", "Vehicle photograph"
+        DRIVER_PHOTO = "driver_photo", "Driver face photo"
 
     class ReviewStatus(models.TextChoices):
         PENDING = "pending", "Pending review"
