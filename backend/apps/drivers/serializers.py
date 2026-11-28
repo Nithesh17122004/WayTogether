@@ -169,6 +169,11 @@ class VerificationDocumentSerializer(serializers.ModelSerializer):
             VerificationDocument.DocumentType.DRIVER_PHOTO,
         } and vehicle is not None:
             raise serializers.ValidationError({"vehicle": "Driver identity documents do not belong to a vehicle."})
+        if document_type == VerificationDocument.DocumentType.DRIVER_PHOTO and attrs.get("file"):
+            try:
+                validate_driver_profile_photo(attrs["file"])
+            except Exception as exc:
+                raise serializers.ValidationError({"file": str(exc)})
 
         expiry_date = attrs.get("expiry_date")
         if expiry_date and expiry_date < timezone.localdate():
