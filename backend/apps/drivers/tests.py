@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -267,6 +268,29 @@ class DriverVerificationApiTests(APITestCase):
         self.assertEqual(updated.status_code, status.HTTP_200_OK)
         driver.refresh_from_db()
         self.assertEqual(driver.phone, "+919876543260")
+
+    @override_settings(PRIVATE_MEDIA_STORAGE_READY=False)
+    def test_driver_document_upload_is_blocked_without_private_storage(self):
+        driver = self.create_driver()
+        self.client.force_authenticate(driver)
+        response = self.client.post(
+            "/api/v1/drivers/documents/",
+            {"document_type": "driver_license", "file": make_pdf()},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertFalse(VerificationDocument.objects.filter(owner=driver).exists())
+
+    def test_driver_face_photo_accepts_only_jpeg_or_png(self):
+        driver = self.create_driver()
+        self.client.force_authenticate(driver)
+        response = self.client.post(
+            "/api/v1/drivers/documents/",
+            {"document_type": "driver_photo", "file": make_pdf()},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(VerificationDocument.objects.filter(owner=driver).exists())
 
     def test_unverified_driver_cannot_upload_documents(self):
         driver = User.objects.create_user(
