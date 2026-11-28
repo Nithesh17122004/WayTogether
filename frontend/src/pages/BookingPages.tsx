@@ -63,6 +63,8 @@ export function PassengerBookingsContent() {
         <h2>{booking.journey_origin} <ArrowRight size={15}/> {booking.journey_destination}</h2>
         <div className="wt-booking-meta"><span><CalendarDays size={13}/>{dateLabel(booking.travel_date)}</span><span><Clock3 size={13}/>{booking.departure_time.slice(0,5)}</span><span><Users size={13}/>{booking.seats_requested} seat(s)</span></div>
         <div className="wt-booking-details"><span>Driver <b>{booking.driver_name}</b></span><span>Vehicle <b>{booking.vehicle_name}</b></span></div>
+        {booking.contact_details_released&&booking.driver_phone&&<div className="wt-verification-intro"><ShieldCheck/><div><b>Driver contact details</b><small><a href={"tel:"+booking.driver_phone}>{booking.driver_phone}</a> · shared after verified payment</small></div></div>}
+        {booking.status==="confirmed"&&!booking.contact_details_released&&<p className="wt-booking-footnote">Phone numbers remain private until this confirmed booking has a successful, verified Razorpay payment.</p>}
         {booking.request_message&&<p className="wt-booking-message">Your note: {booking.request_message}</p>}
         {booking.driver_response&&<p className="wt-booking-message driver">Driver response: {booking.driver_response}</p>}
         {booking.status==="confirmed"&&<div className="wt-booking-contribution"><span>Current provisional expense share</span><b>{money(booking.estimated_contribution_total)}</b><small>{money(booking.estimated_contribution_per_passenger)} per passenger · may be recalculated as other seats are confirmed</small></div>}
@@ -114,6 +116,8 @@ export function DriverBookingRequestsContent() {
         <h2>{booking.journey_origin} <ArrowRight size={15}/> {booking.journey_destination}</h2>
         <div className="wt-booking-meta"><span><CalendarDays size={13}/>{dateLabel(booking.travel_date)}</span><span><Clock3 size={13}/>{booking.departure_time.slice(0,5)}</span><span><Users size={13}/>{booking.seats_requested} seat(s) requested</span></div>
         <div className="wt-booking-details"><span>Passenger <b>{booking.passenger_name}</b></span><span>Vehicle <b>{booking.vehicle_name}</b></span></div>
+        {booking.contact_details_released&&booking.passenger_phone&&<div className="wt-verification-intro"><ShieldCheck/><div><b>Passenger contact details</b><small><a href={"tel:"+booking.passenger_phone}>{booking.passenger_phone}</a> · shared after verified payment</small></div></div>}
+        {booking.status==="confirmed"&&!booking.contact_details_released&&<p className="wt-booking-footnote">Phone numbers remain private until this confirmed booking has a successful, verified Razorpay payment.</p>}
         {booking.request_message&&<p className="wt-booking-message">Passenger note: {booking.request_message}</p>}
         {booking.status==="confirmed"&&<div className="wt-booking-contribution"><span>Current provisional expense share</span><b>{money(booking.estimated_contribution_total)}</b><small>{money(booking.estimated_contribution_per_passenger)} per passenger · recalculated when confirmed occupancy changes</small></div>}
         {booking.status==="pending"&&<>
