@@ -1697,3 +1697,61 @@ body { background:#f5f7f8 !important; color:#263b4b; }
   .wt-dashboard-content .wt-table-wrap td,
   .wt-dashboard-content .wt-table-wrap th { white-space: normal; }
 }
+
+
+/* Final accessibility pass: keep dashboard and journey details crisp on all displays. */
+.wt-dashboard,
+.wt-market-page,
+.wt-profile-page {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.wt-dashboard-content,
+.wt-market-page {
+  color: #f3f6ff;
+  font-size: 15px;
+  line-height: 1.65;
+}
+.wt-dashboard-content .wt-panel,
+.wt-market-page .wt-panel {
+  background-color: #101d38;
+}
+.wt-dashboard-content .wt-field > span,
+.wt-market-page .wt-field > span {
+  color: #f4f7ff !important;
+  font-weight: 700;
+  font-size: 14px;
+}
+.wt-dashboard-content .wt-field input,
+.wt-dashboard-content .wt-field select,
+.wt-dashboard-content .wt-field textarea,
+.wt-market-page .wt-field input,
+.wt-market-page .wt-field select,
+.wt-market-page .wt-field textarea {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+}
+.wt-dashboard-content .wt-btn,
+.wt-market-page .wt-btn {
+  font-weight: 750;
+  letter-spacing: .01em;
+}
+.wt-dashboard-content a:focus-visible,
+.wt-market-page a:focus-visible,
+.wt-dashboard-content button:focus-visible,
+.wt-market-page button:focus-visible,
+.wt-dashboard-content input:focus-visible,
+.wt-market-page input:focus-visible,
+.wt-dashboard-content select:focus-visible,
+.wt-market-page select:focus-visible,
+.wt-dashboard-content textarea:focus-visible,
+.wt-market-page textarea:focus-visible {
+  outline: 3px solid #9acbff;
+  outline-offset: 3px;
+}
+@media (max-width: 640px) {
+  .wt-market-page .wt-page-heading h1 { font-size: clamp(25px, 7vw, 34px); line-height: 1.2; }
+  .wt-market-page .wt-live-detail-grid { grid-template-columns: minmax(0, 1fr); }
+  .wt-market-page .wt-live-booking-panel { position: static; }
+}
