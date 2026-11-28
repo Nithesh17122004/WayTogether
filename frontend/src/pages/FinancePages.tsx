@@ -6,9 +6,10 @@ import {
 } from "lucide-react";
 import { getMyJourneys, type JourneyRecord } from "../services/journeys";
 import {
-  completeSandboxPayment, createSandboxPayment, finalizeJourneyExpenses,
-  getDriverSettlement, getMyContributions,
-  type ExpenseSettlementRecord, type PassengerContributionRecord, type SettlementInput,
+  createRazorpayOrder, finalizeJourneyExpenses, getDriverSettlement,
+  getMyContributions, launchRazorpayCheckout, markRazorpayPaymentFailed,
+  verifyRazorpayPayment, type ExpenseSettlementRecord,
+  type PassengerContributionRecord, type SettlementInput,
 } from "../services/finance";
 
 const money=(value:string|number)=>new Intl.NumberFormat("en-IN",{
@@ -20,7 +21,6 @@ const dateLabel=(value:string)=>new Date(value+"T00:00:00").toLocaleDateString(
 function FinanceNotice({text,kind="success"}:{text:string;kind?:"success"|"error"|"info"}) {
   return <div className={"wt-market-notice "+kind} role={kind==="error"?"alert":"status"}>{text}</div>;
 }
-const showSandboxControls=import.meta.env.DEV;
 const emptyExpenses=():SettlementInput=>({
   actual_fuel_expense:"0.00",
   actual_toll_expense:"0.00",
@@ -126,50 +126,73 @@ export function PassengerFinanceContent() {
   const startPayment=async(contribution:PassengerContributionRecord)=>{
     setBusyId(contribution.id);setError("");setNotice("");
     try{
-      const result=await createSandboxPayment(contribution.id);
-      setNotice(result.detail);load();
-    }catch(err){setError(err instanceof Error?err.message:"Sandbox payment could not be started.");}
-    finally{setBusyId(null);}
-  };
-  const simulate=async(contribution:PassengerContributionRecord,outcome:"succeeded"|"failed")=>{
-    const payment=contribution.latest_payment;
-    if(!payment)return;
-    setBusyId(contribution.id);setError("");setNotice("");
-    try{
-      const result=await completeSandboxPayment(
-        payment.id,outcome,outcome==="failed"?"Simulated test decline":""
-      );
-      setNotice(result.detail);load();
-    }catch(err){setError(err instanceof Error?err.message:"Sandbox result could not be recorded.");}
-    finally{setBusyId(null);}
+      const result=await createRazorpayOrder(contribution.id);
+      setNotice(result.detail);
+      await launchRazorpayCheckout({
+        keyId:result.key_id,
+        orderId:result.order.id,
+        amount:result.order.amount,
+        currency:result.order.currency,
+        customerName:result.customer.name,
+        customerEmail:result.customer.email,
+        onSuccess:async response=>{
+          try{
+            const verified=await verifyRazorpayPayment(result.payment.id,response);
+            setNotice(verified.detail);
+            load();
+          }catch(err){
+            setError(err instanceof Error?err.message:"Razorpay payment verification failed. Check the payment status before retrying.");
+            load();
+          }finally{
+            setBusyId(null);
+          }
+        },
+        onFailure:async reason=>{
+          try{
+            const failed=await markRazorpayPaymentFailed(result.payment.id,reason);
+            setError(failed.detail);
+          }catch(err){
+            setError(err instanceof Error?err.message:"The test payment failed; its final status could not be refreshed.");
+          }finally{
+            load();
+            setBusyId(null);
+          }
+        },
+        onDismiss:()=>{
+          setBusyId(null);
+          setNotice("Checkout closed. No payment was confirmed.");
+        },
+      });
+    }catch(err){
+      setError(err instanceof Error?err.message:"Razorpay Checkout could not be opened.");
+      setBusyId(null);
+    }
   };
 
   return <div className="wt-market-dashboard-page">
-    <div className="wt-dash-heading"><div><span className="wt-eyebrow">PASSENGER WORKSPACE</span><h1>Expense contributions.</h1><p>Review your final eligible-expense share and explore the test payment workflow.</p></div><span className="wt-booking-status wt-booking-confirmed">Sandbox only</span></div>
-    <div className="wt-verification-intro"><ShieldCheck/><div><b>Nothing here moves real money</b><small>Payments on this page are simulated records for testing. No bank, UPI, card, payment gateway or driver account is contacted. Do not enter payment credentials.</small></div></div>
-    {error&&<FinanceNotice text={error} kind="error"/>}{notice&&<FinanceNotice text={notice}/>}
+    <div className="wt-dash-heading"><div><span className="wt-eyebrow">PASSENGER WORKSPACE</span><h1>Expense contributions.</h1><p>Review your final eligible-expense share and pay securely using Razorpay Test Mode.</p></div><span className="wt-booking-status wt-booking-confirmed">Razorpay Test Mode</span></div>
+    <div className="wt-verification-intro"><ShieldCheck/><div><b>Test transactions only</b><small>Checkout uses Razorpay Test Mode credentials (rzp_test_). No real money is deducted. Live payment keys are rejected by the backend.</small></div></div>
+    {error&&<FinanceNotice text={error} kind="error"/>}{notice&&<FinanceNotice text={notice} kind="info"/>}
     {loading?<div className="wt-market-empty"><RefreshCw className="wt-spin"/>Loading contribution records…</div>:
-      contributions.length===0?<div className="wt-market-empty"><Wallet/><b>No finalized contribution records.</b><p>After a driver submits the actual eligible expenses for a completed journey, your individual contribution will appear here.</p><Link to="/dashboard/passenger/bookings" className="wt-btn wt-btn-primary">My bookings <ArrowRight size={14}/></Link></div>:
+      contributions.length===0?<div className="wt-market-empty"><Wallet/><b>No finalized contribution records.</b><p>After a driver submits actual eligible expenses for a completed journey, your contribution will appear here.</p><Link to="/dashboard/passenger/bookings" className="wt-btn wt-btn-primary">My bookings <ArrowRight size={14}/></Link></div>:
       <div className="wt-finance-list">{contributions.map(item=>{
         const payment=item.latest_payment;
         const status=payment?.status;
+        const isCaptured=status==="captured";
+        const badgeClass=isCaptured?"wt-booking-confirmed":status==="failed"?"wt-booking-declined":"wt-booking-pending";
+        const badgeLabel=isCaptured?"Paid · Test Mode":status==="failed"?"Payment failed":status==="created"?"Order ready · Test Mode":"Payment not started";
         return <article className="wt-panel wt-finance-card" key={item.id}>
-          <div className="wt-booking-card-head"><span>Contribution #{item.id} · Booking #{item.booking_id}</span>
-            <span className={"wt-booking-status "+(status==="succeeded"?"wt-booking-confirmed":status==="refunded"?"wt-booking-cancelled":status==="failed"?"wt-booking-declined":"wt-booking-pending")}>{status?status==="created"?"Sandbox initiated":status==="succeeded"?"Sandbox successful":status==="failed"?"Sandbox failed":"Sandbox refunded":"Final expense recorded"}</span>
-          </div>
+          <div className="wt-booking-card-head"><span>Contribution #{item.id} · Booking #{item.booking_id}</span><span className={"wt-booking-status "+badgeClass}>{badgeLabel}</span></div>
           <h2>{item.origin_name} <ArrowRight size={14}/> {item.destination_name}</h2>
           <div className="wt-booking-meta"><span><CalendarDays size={13}/>{dateLabel(item.travel_date)}</span><span>{item.seat_count} seat(s)</span><span>Driver: {item.driver_name}</span></div>
           <div className="wt-finance-share"><span>Final eligible expense contribution</span><b>{money(item.total_amount)}</b><small>{money(item.per_seat_amount)} per seat · calculated from actual expenses</small></div>
-          {payment&&<div className="wt-sandbox-payment-meta"><span>Sandbox reference <b>{payment.reference.slice(0,13)}…</b></span><span>Simulated transaction <b>{payment.status}</b></span>{payment.failure_note&&<span>Test result <b>{payment.failure_note}</b></span>}</div>}
+          {payment&&<div className="wt-sandbox-payment-meta"><span>Razorpay order <b>{payment.order_id}</b></span>{payment.payment_id&&<span>Payment ID <b>{payment.payment_id}</b></span>}{payment.failure_reason&&<span>Payment status <b>{payment.failure_reason}</b></span>}</div>}
           <div className="wt-booking-actions">
-            {showSandboxControls&&(!payment||status==="failed"||status==="refunded")?<button className="wt-btn wt-btn-primary" type="button" disabled={busyId===item.id} onClick={()=>startPayment(item)}>{busyId===item.id?"Starting…":status==="failed"?"Retry sandbox test":"Start sandbox payment"} <ArrowRight size={14}/></button>:null}
-            {showSandboxControls&&status==="created"&&<>
-              <button className="wt-btn wt-btn-outline" type="button" disabled={busyId===item.id} onClick={()=>simulate(item,"failed")}>Simulate failure</button>
-              <button className="wt-btn wt-btn-primary" type="button" disabled={busyId===item.id} onClick={()=>simulate(item,"succeeded")}><CheckCircle2 size={14}/> Simulate success</button>
-            </>}
+            {!isCaptured&&<button className="wt-btn wt-btn-primary" type="button" disabled={busyId===item.id} onClick={()=>startPayment(item)}>{busyId===item.id?"Opening Razorpay…":status==="failed"?"Retry Test Mode payment":status==="created"?"Continue to payment":"Pay with Razorpay"} <ArrowRight size={14}/></button>}
+            {isCaptured&&<span className="wt-payment-confirmed"><CheckCircle2 size={15}/> Payment captured and verified</span>}
           </div>
         </article>;
       })}</div>}
-    <p className="wt-market-footnote">The current test interface never collects card or UPI information. Sandbox controls are hidden from production builds. A sandbox success is only a database status change. No receipt, real payment confirmation or transfer to the driver is produced.</p>
+    <p className="wt-market-footnote">This payment flow is restricted to Razorpay Test Mode. The backend creates the order, verifies Razorpay's signature, checks order amount and currency, and confirms capture before marking the contribution paid. Real payments, refunds, platform commission and driver payouts are not enabled.</p>
   </div>;
 }
