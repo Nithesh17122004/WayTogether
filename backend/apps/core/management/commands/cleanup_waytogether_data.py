@@ -78,7 +78,6 @@ class Command(BaseCommand):
         keep_document_ids = set(
             VerificationDocument.objects.filter(
                 owner_id__in=required_driver_ids,
-                is_current=True,
                 review_status="approved",
             ).filter(
                 Q(vehicle__isnull=True) | Q(vehicle_id__in=vehicle_ids)
