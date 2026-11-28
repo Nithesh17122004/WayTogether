@@ -56,7 +56,7 @@ class RegistrationAndVerificationTests(APITestCase):
         self.assertNotIn("phone", response.data["verification"])
         self.assertEqual(len(mail.outbox), 1)
 
-        email_match = re.search(r"code is (\\d{6})", mail.outbox[0].body)
+        email_match = re.search(r"code is (\d{6})", mail.outbox[0].body)
         self.assertIsNotNone(email_match)
         email_result = self.client.post(
             "/api/v1/auth/verification/confirm/",
