@@ -19,25 +19,19 @@ def available_seat_count(journey):
 
 def refresh_contribution_estimates(journey):
     """
-    Recalculate provisional equal expense shares after an approval/cancellation.
-    No money is charged in Phase 6. Phase 7 must define the final charge point.
+    Keep each active booking aligned with the driver's published per-seat amount.
+    The passenger price is fixed per seat: driver amount + disclosed 30% fee.
+    This only records an estimate; it does not initiate a payment or payout.
     """
-    confirmed = list(
-        Booking.objects.filter(
-            journey=journey,
-            status=Booking.Status.CONFIRMED,
-        ).order_by("requested_at", "id")
-    )
-    occupied_seats = sum(item.seats_requested for item in confirmed)
-    if not confirmed:
-        return
-
-    total_people = occupied_seats + 1  # driver plus confirmed passengers
-    per_person = (journey.estimated_total_expenses / total_people).quantize(
+    active_bookings = Booking.objects.filter(
+        journey=journey,
+        status__in=(Booking.Status.PENDING, Booking.Status.CONFIRMED),
+    ).order_by("requested_at", "id")
+    per_person = journey.passenger_total_per_passenger.quantize(
         Decimal("0.01"), rounding=ROUND_HALF_UP
     )
 
-    for booking in confirmed:
+    for booking in active_bookings:
         booking.estimated_contribution_per_passenger = per_person
         booking.estimated_contribution_total = (
             per_person * booking.seats_requested
