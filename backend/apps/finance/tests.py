@@ -10,7 +10,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import PassengerVerification
 from apps.bookings.models import Booking
-from apps.drivers.models import Vehicle
+from apps.drivers.models import DriverProfile, Vehicle
 from apps.journeys.models import Journey
 
 from .models import ExpenseSettlement, PassengerContribution, SandboxPayment, SandboxRefund
@@ -30,6 +30,11 @@ class FinanceApiTests(APITestCase):
             is_phone_verified=True,
             is_staff=is_staff,
         )
+        if role == User.Role.DRIVER:
+            DriverProfile.objects.create(
+                user=user,
+                verification_status=DriverProfile.VerificationStatus.APPROVED,
+            )
         if role == User.Role.PASSENGER:
             PassengerVerification.objects.create(
                 user=user,
