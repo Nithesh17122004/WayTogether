@@ -9,6 +9,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.accounts.models import PassengerVerification
 from apps.drivers.models import DriverProfile, Vehicle, VerificationDocument
 from .models import Journey, JourneyStop
 from .services import MapsProviderError, MapsRateLimitError, get_route_preview, search_locations
@@ -29,6 +30,7 @@ class JourneyApiTests(APITestCase):
         )
         profile = DriverProfile.objects.create(
             user=user,
+            profile_photo="private/test-driver-photo.jpg",
             verification_status=(
                 DriverProfile.VerificationStatus.APPROVED
                 if approved else DriverProfile.VerificationStatus.DRAFT
@@ -451,12 +453,13 @@ class BookingApiTests(APITestCase):
         )
         DriverProfile.objects.create(
             user=user,
+            profile_photo="private/test-driver-photo.jpg",
             verification_status=DriverProfile.VerificationStatus.APPROVED,
         )
         return user
 
     def create_passenger(self, email="passenger@example.com", phone="+919876543220"):
-        return User.objects.create_user(
+        user = User.objects.create_user(
             email=email,
             phone=phone,
             password="A-Strong-Unique-Password-928!",
@@ -465,6 +468,17 @@ class BookingApiTests(APITestCase):
             is_email_verified=True,
             is_phone_verified=True,
         )
+        PassengerVerification.objects.create(
+            user=user,
+            masked_aadhaar_document="private/test-aadhaar.pdf",
+            passenger_photo="private/test-passenger-photo.jpg",
+            masked_aadhaar_file_name="test-aadhaar.pdf",
+            passenger_photo_file_name="test-passenger-photo.jpg",
+            consent_at=timezone.now(),
+            status=PassengerVerification.Status.APPROVED,
+            reviewed_at=timezone.now(),
+        )
+        return user
 
     def create_approved_vehicle(self, driver, seats=3):
         return Vehicle.objects.create(

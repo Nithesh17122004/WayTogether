@@ -1336,3 +1336,77 @@ body { background:#f5f7f8 !important; color:#263b4b; }
   .wt-search-route-heading { align-items: flex-start; flex-direction: column; }
   .wt-market-page .wt-location-input-row input { font-size: 14px; }
 }
+
+
+/* WayTogether dashboard readability refresh */
+.wt-dashboard,
+.wt-dashboard button,
+.wt-dashboard input,
+.wt-dashboard select,
+.wt-dashboard textarea {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.wt-dashboard { background: #071127; color: #f7faff; }
+.wt-sidebar { background: #0b1732; border-right-color: rgba(169,190,239,.22); }
+.wt-sidebar nav a { color: #c2d0ec; font-size: 12px; font-weight: 700; }
+.wt-sidebar nav a.active,
+.wt-sidebar nav a:hover { color: #ffffff; background: linear-gradient(100deg,rgba(116,76,255,.32),rgba(38,111,255,.24)); }
+.wt-side-label { color: #a5b8dd; font-size: 10px; }
+.wt-sidebar-bottom a { color: #bdcbea; font-size: 11px; }
+.wt-dashboard-top { color: #f4f7ff; border-bottom-color: rgba(169,190,239,.2); }
+.wt-dashboard-content { color: #f4f7ff; }
+.wt-dash-heading h1,
+.wt-page-heading h1 { color: #ffffff; font-size: clamp(32px,4vw,46px); font-weight: 850; }
+.wt-dash-heading p,
+.wt-page-heading p { color: #c1cde7; font-size: 14px; line-height: 1.7; }
+.wt-eyebrow { color: #b8d0ff; font-size: 10px; letter-spacing: 1.65px; }
+.wt-dash-metrics { gap: 14px; }
+.wt-metric { border-color: rgba(166,191,244,.25); background: linear-gradient(145deg,rgba(44,75,139,.34),rgba(20,37,78,.72)); box-shadow: 0 10px 26px rgba(0,0,0,.14); }
+.wt-metric>span { color: #dce8ff; background: rgba(89,132,255,.26); }
+.wt-metric small { color: #d0dcf4; font-size: 10px; font-weight: 700; }
+.wt-metric b { color: #ffffff; font-size: 27px; }
+.wt-metric em { color: #afc4e9; font-size: 10px; }
+.wt-panel { border-color: rgba(167,190,236,.24); background: linear-gradient(145deg,rgba(25,43,83,.92),rgba(14,27,57,.96)); }
+.wt-dash-section { padding: 22px; }
+.wt-panel-heading h2 { color: #ffffff; font-size: 16px; font-weight: 800; }
+.wt-panel-heading p { color: #bdcbe7; font-size: 11px; }
+.wt-table-wrap th { color: #c4d2ee; border-bottom-color: rgba(173,194,237,.26); font-size: 10px; font-weight: 800; }
+.wt-table-wrap td { color: #e0e8f8; border-bottom-color: rgba(173,194,237,.16); font-size: 12px; }
+.wt-table-wrap td b { color: #ffffff; font-size: 13px; }
+.wt-table-wrap td small { color: #bdcbea; font-size: 10px; }
+.wt-dashboard-journey-link { color: inherit; text-decoration: none; }
+.wt-dashboard-journey-link:hover b { color: #9edcff; text-decoration: underline; }
+.wt-status { font-size: 10px; padding: 6px 9px; }
+.status-open { color: #b8ffdf; background: rgba(22,184,126,.2); }
+.status-full { color: #ffd0d0; background: rgba(222,83,83,.18); }
+.wt-empty-dashboard { padding: 20px; gap: 16px; }
+.wt-empty-dashboard b { color: #ffffff; font-size: 13px; }
+.wt-empty-dashboard p { color: #c1cde7; font-size: 12px; line-height: 1.6; }
+.wt-empty-dashboard>svg { color: #a9c7ff; width: 24px; height: 24px; flex: 0 0 auto; }
+.wt-btn { min-height: 46px; padding-inline: 18px; font-size: 13px; font-weight: 800; }
+.wt-btn-primary { color: #ffffff; background: linear-gradient(110deg,#8b3cff 0%,#286fff 56%,#08a9d7 100%); box-shadow: 0 8px 22px rgba(52,111,255,.34); }
+.wt-btn-primary:hover { filter: brightness(1.12); box-shadow: 0 11px 26px rgba(52,111,255,.44); }
+.wt-btn:focus-visible,
+.wt-dashboard a:focus-visible { outline: 3px solid #77dcff; outline-offset: 3px; }
+.wt-dash-error { padding: 13px 15px; border: 1px solid rgba(255,135,151,.45); border-radius: 10px; color: #ffe3e7; background: rgba(125,25,48,.25); font-size: 13px; }
+.wt-payment-confirmed { display: inline-flex; align-items: center; gap: 7px; color: #a9f7d5; font-size: 13px; font-weight: 800; }
+.wt-market-footnote { color: #c4d1e9; font-size: 12px; line-height: 1.7; }
+.wt-market-notice { font-size: 13px; line-height: 1.65; }
+.wt-field>span { color: #e2eaff; font-size: 12px; font-weight: 750; }
+.wt-field input,
+.wt-field select,
+.wt-field textarea { font-size: 14px; }
+@media (max-width: 900px) {
+  .wt-dashboard-content { padding: 22px; }
+  .wt-dash-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 600px) {
+  .wt-dashboard-content { padding: 16px; }
+  .wt-dash-heading { align-items: flex-start; flex-direction: column; }
+  .wt-dash-metrics { gap: 9px; }
+  .wt-metric { padding: 13px; }
+  .wt-metric b { font-size: 23px; }
+  .wt-dash-section { padding: 15px; }
+  .wt-empty-dashboard { align-items: flex-start; flex-wrap: wrap; }
+  .wt-empty-dashboard .wt-btn { width: 100%; }
+}

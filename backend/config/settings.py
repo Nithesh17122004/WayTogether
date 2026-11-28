@@ -262,6 +262,9 @@ MAPS_USER_AGENT = os.getenv(
     "WayTogether/1.0 (configure a monitored contact URL before production)",
 )
 
-# Finance is intentionally test-only. No live gateway adapter or charge path exists.
-FINANCE_SANDBOX_ENABLED = _env_bool("FINANCE_SANDBOX_ENABLED", DEBUG)
+# Razorpay is intentionally restricted to Test Mode until a separately reviewed go-live change.
+RAZORPAY_TEST_MODE = _env_bool("RAZORPAY_TEST_MODE", True)
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "").strip()
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+FINANCE_SANDBOX_ENABLED = False
 LIVE_PAYMENTS_ENABLED = False

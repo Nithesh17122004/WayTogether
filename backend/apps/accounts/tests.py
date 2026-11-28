@@ -264,7 +264,7 @@ class ResendEmailDeliveryTests(TestCase):
         import requests
         post.side_effect = requests.Timeout("test timeout")
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(requests.Timeout):
             issue_verification_code(self.user, VerificationCode.Channel.EMAIL)
 
         self.assertFalse(

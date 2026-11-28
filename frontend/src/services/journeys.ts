@@ -182,3 +182,8 @@ export async function cancelJourney(id: number) {
     true,
   );
 }
+
+
+export async function getUpcomingJourneys() {
+  return apiRequest<JourneyRecord[]>("/journeys/upcoming/", {}, true);
+}

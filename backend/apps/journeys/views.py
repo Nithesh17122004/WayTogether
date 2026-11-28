@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, status
@@ -362,3 +362,16 @@ class JourneyCancelView(APIView):
             "detail": "Journey cancelled. All pending requests and confirmed bookings have been cancelled.",
             "status": journey.status,
         })
+
+
+class UpcomingJourneyListView(generics.ListAPIView):
+    """Real published future routes for the signed-in marketplace dashboard."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = JourneySerializer
+
+    def get_queryset(self):
+        now = timezone.localtime().time().replace(tzinfo=None)
+        return _published_queryset().filter(
+            Q(travel_date__gt=timezone.localdate())
+            | Q(travel_date=timezone.localdate(), departure_time__gte=now)
+        ).order_by("travel_date", "departure_time")[:30]

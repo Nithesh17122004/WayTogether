@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import ExpenseSettlement, PassengerContribution, SandboxPayment, SandboxRefund
+from .models import ExpenseSettlement, PassengerContribution, RazorpayPayment, SandboxPayment, SandboxRefund
 
 
 class ExpenseSettlementInputSerializer(serializers.Serializer):
@@ -68,5 +68,15 @@ class PassengerContributionSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_latest_payment(self, obj):
-        payment = obj.sandbox_payments.order_by("-created_at").first()
-        return SandboxPaymentSerializer(payment).data if payment else None
+        payment = obj.razorpay_payments.order_by("-created_at").first()
+        return RazorpayPaymentSerializer(payment).data if payment else None
+
+
+class RazorpayPaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RazorpayPayment
+        fields = (
+            "id", "order_id", "payment_id", "status", "amount", "currency",
+            "test_mode", "failure_reason", "created_at", "completed_at",
+        )
+        read_only_fields = fields

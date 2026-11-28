@@ -9,11 +9,13 @@ from .views import (
     LocationSearchView,
     MyJourneyListView,
     RoutePreviewView,
+    UpcomingJourneyListView,
 )
 
 urlpatterns = [
     path("locations/search/", LocationSearchView.as_view(), name="journey-location-search"),
     path("route-preview/", RoutePreviewView.as_view(), name="journey-route-preview"),
+    path("upcoming/", UpcomingJourneyListView.as_view(), name="upcoming-journeys"),
     path("mine/", MyJourneyListView.as_view(), name="my-journeys"),
     path("", JourneyListCreateView.as_view(), name="journey-list-create"),
     path("<int:pk>/", JourneyDetailView.as_view(), name="journey-detail"),

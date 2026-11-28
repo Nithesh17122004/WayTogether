@@ -8,6 +8,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.accounts.models import PassengerVerification
 from apps.bookings.models import Booking
 from apps.drivers.models import Vehicle
 from apps.journeys.models import Journey
@@ -19,7 +20,7 @@ User = get_user_model()
 
 class FinanceApiTests(APITestCase):
     def create_user(self, email, phone, role, *, is_staff=False):
-        return User.objects.create_user(
+        user = User.objects.create_user(
             email=email,
             phone=phone,
             password="A-Strong-Unique-Password-928!",
@@ -29,6 +30,18 @@ class FinanceApiTests(APITestCase):
             is_phone_verified=True,
             is_staff=is_staff,
         )
+        if role == User.Role.PASSENGER:
+            PassengerVerification.objects.create(
+                user=user,
+                masked_aadhaar_document="private/test-aadhaar.pdf",
+                passenger_photo="private/test-passenger-photo.jpg",
+                masked_aadhaar_file_name="test-aadhaar.pdf",
+                passenger_photo_file_name="test-passenger-photo.jpg",
+                consent_at=timezone.now(),
+                status=PassengerVerification.Status.APPROVED,
+                reviewed_at=timezone.now(),
+            )
+        return user
 
     def setUp(self):
         # Avoid cross-test DRF throttle state leaking between API test cases.
