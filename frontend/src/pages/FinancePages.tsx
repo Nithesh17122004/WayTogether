@@ -189,7 +189,7 @@ export function PassengerFinanceContent() {
           {payment&&<div className="wt-sandbox-payment-meta"><span>Razorpay order <b>{payment.order_id}</b></span>{payment.payment_id&&<span>Payment ID <b>{payment.payment_id}</b></span>}{payment.failure_reason&&<span>Payment status <b>{payment.failure_reason}</b></span>}</div>}
           <div className="wt-booking-actions">
             {!isCaptured&&<button className="wt-btn wt-btn-primary" type="button" disabled={busyId===item.id} onClick={()=>startPayment(item)}>{busyId===item.id?"Opening Razorpay…":status==="failed"?"Retry Test Mode payment":status==="created"?"Continue to payment":"Pay with Razorpay"} <ArrowRight size={14}/></button>}
-            {isCaptured&&<span className="wt-payment-confirmed"><CheckCircle2 size={15}/> Payment captured and verified</span>}
+            {isCaptured&&<><span className="wt-payment-confirmed"><CheckCircle2 size={15}/> Payment captured and verified</span><Link to="/dashboard/passenger/bookings" className="wt-text-link">View booking and released contact details <ArrowRight size={14}/></Link></>}
           </div>
         </article>;
       })}</div>}
