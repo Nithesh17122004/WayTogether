@@ -2,7 +2,7 @@ import "./phase2.css";
 import { apiRequest, downloadPrivateFile, getCurrentUser, hasAuthSession, logoutCurrentSession, setAuthTokens } from "./services/api";
 import { JourneyDetailContent, JourneyPublishContent, JourneySearchContent, MyJourneysContent } from "./pages/JourneyPages";
 import { DriverBookingRequestsContent, PassengerBookingsContent } from "./pages/BookingPages";
-import { getUpcomingJourneys, type JourneyRecord } from "./services/journeys";
+import { getMyJourneys, getUpcomingJourneys, type JourneyRecord } from "./services/journeys";
 import { DriverFinanceContent, PassengerFinanceContent } from "./pages/FinancePages";
 import { AdminSafetyReportsContent, JourneyReviewsContent, MessagesContent, NotificationCenterContent, SafetyCenterContent } from "./pages/TrustPages";
 import { AdminBookingsContent, AdminExpenseLedgerContent, AdminJourneysContent, AdminOverviewContent, AdminUsersContent } from "./pages/AdminPages";
@@ -699,8 +699,80 @@ function PassengerDashboard() {
   </DashboardLayout>;
 }
 function DriverDashboard() {
-  return <DashboardLayout role="Driver"><div className="wt-dash-heading"><div><Eyebrow>DRIVER WORKSPACE</Eyebrow><h1>Your journeys, in one place.</h1><p>Manage independently planned trips and passenger requests.</p></div><Link to="/dashboard/driver/bookings" className="wt-btn wt-btn-primary">Booking requests <Users size={15}/></Link></div><div className="wt-dash-banner"><div><span><ShieldCheck size={18}/> DRIVER PRINCIPLE</span><b>Share the journey you already planned.</b><p>WayTogether is designed for eligible expense sharing, not profit-seeking passenger transport.</p></div><Link to="/publish" className="wt-btn wt-btn-primary">Share a journey <Plus size={16}/></Link></div><div className="wt-dash-metrics"><Metric label="Published journeys" value="03" detail="Sample data" icon={CarFront}/><Metric label="Seat requests" value="05" detail="Sample data" icon={Users}/><Metric label="Completed journeys" value="12" detail="Sample data" icon={Check}/><Metric label="Driver rating" value="4.9" detail="Illustrative rating" icon={Star}/></div><section className="wt-panel wt-dash-section"><div className="wt-panel-heading"><div><h2>Recent journey drafts</h2><p>Illustrative driver workspace content.</p></div><Link to="/publish" className="wt-text-link">Create a journey <Plus size={15}/></Link></div><div className="wt-table-wrap"><table><thead><tr><th>Route</th><th>Departure</th><th>Seats</th><th>Status</th></tr></thead><tbody><tr><td><b>Chennai → Bengaluru</b><small>Journey WT-001</small></td><td>28 Nov · 7:30 AM</td><td>2</td><td><span className="wt-status status-pending">Draft preview</span></td></tr><tr><td><b>Chennai → Vellore</b><small>Journey WT-002</small></td><td>30 Nov · 8:00 AM</td><td>3</td><td><span className="wt-status status-pending">Draft preview</span></td></tr></tbody></table></div></section></DashboardLayout>;
+  const [journeys, setJourneys] = useState<JourneyRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    getMyJourneys()
+      .then(records => { if (active) setJourneys(records); })
+      .catch(err => { if (active) setError(err instanceof Error ? err.message : "Could not load your journeys."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  const upcomingJourneys = journeys
+    .filter(journey => {
+      if (journey.status !== "published") return false;
+      const departure = new Date(journey.travel_date + "T" + journey.departure_time);
+      return departure.getTime() >= Date.now();
+    })
+    .sort((a, b) => {
+      const aDate = new Date(a.travel_date + "T" + a.departure_time).getTime();
+      const bDate = new Date(b.travel_date + "T" + b.departure_time).getTime();
+      return aDate - bDate;
+    });
+  const availableSeats = upcomingJourneys.reduce((total, journey) => total + journey.available_seats, 0);
+  const nextJourney = upcomingJourneys[0];
+  const money = (value: string | number) => new Intl.NumberFormat("en-IN", {
+    style: "currency", currency: "INR", maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+  const dateLabel = (value: string) => new Date(value + "T00:00:00").toLocaleDateString(
+    "en-IN", { weekday: "short", day: "numeric", month: "short" },
+  );
+
+  return <DashboardLayout role="Driver">
+    <div className="wt-dash-heading">
+      <div><Eyebrow>DRIVER WORKSPACE</Eyebrow><h1>Your journeys, in one place.</h1><p>Manage upcoming journeys you have independently planned and published.</p></div>
+      <Link to="/publish" className="wt-btn wt-btn-primary">Share a journey <Plus size={15}/></Link>
+    </div>
+    <div className="wt-dash-banner">
+      <div><span><ShieldCheck size={18}/> DRIVER PRINCIPLE</span><b>Share the journey you already planned.</b><p>WayTogether is designed for eligible expense sharing, not profit-seeking passenger transport.</p></div>
+      <Link to="/dashboard/driver/bookings" className="wt-btn wt-btn-primary">Booking requests <Users size={15}/></Link>
+    </div>
+    <div className="wt-dash-metrics">
+      <Metric label="Upcoming journeys" value={loading ? "…" : String(upcomingJourneys.length)} detail="Your live published routes" icon={CarFront}/>
+      <Metric label="Seats available" value={loading ? "…" : String(availableSeats)} detail="Across upcoming journeys" icon={Users}/>
+      <Metric label="Next departure" value={loading ? "…" : nextJourney ? dateLabel(nextJourney.travel_date) : "—"} detail={nextJourney ? nextJourney.departure_time.slice(0,5) : "No upcoming journey"} icon={CalendarDays}/>
+      <Metric label="Next estimated share" value={loading ? "…" : nextJourney ? money(nextJourney.estimated_contribution_per_passenger) : "—"} detail="Per passenger · indicative" icon={Wallet}/>
+    </div>
+    <section className="wt-panel wt-dash-section">
+      <div className="wt-panel-heading"><div><h2>Your upcoming journeys</h2><p>Live published routes from your account.</p></div><Link to="/dashboard/driver/journeys" className="wt-text-link">Manage journeys <ArrowRight size={15}/></Link></div>
+      {error ? <div className="wt-dash-error" role="alert">{error}</div> : loading ? (
+        <div className="wt-market-empty"><span className="wt-spin"/>Loading your journeys…</div>
+      ) : upcomingJourneys.length === 0 ? (
+        <div className="wt-empty-dashboard">
+          <Compass/><div><b>You have no upcoming published journeys.</b><p>Publish a journey you have already planned and it will appear here.</p></div>
+          <Link className="wt-btn wt-btn-primary" to="/publish">Share a journey <Plus size={15}/></Link>
+        </div>
+      ) : (
+        <div className="wt-table-wrap">
+          <table><thead><tr><th>Route</th><th>Departure</th><th>Estimated share</th><th>Seats</th><th>Manage</th></tr></thead>
+            <tbody>{upcomingJourneys.slice(0,5).map(journey=><tr key={journey.id}>
+              <td><Link className="wt-dashboard-journey-link" to={"/journeys/"+journey.id}><b>{journey.origin_name} → {journey.destination_name}</b><small>Journey #{journey.id}</small></Link></td>
+              <td>{dateLabel(journey.travel_date)} · {journey.departure_time.slice(0,5)}</td>
+              <td>{money(journey.estimated_contribution_per_passenger)}<small>Per passenger · indicative</small></td>
+              <td><span className={"wt-status "+(journey.available_seats>0?"status-open":"status-full")}>{journey.available_seats>0?journey.available_seats+" available":"Full"}</span></td>
+              <td><Link className="wt-text-link" to="/dashboard/driver/journeys">View</Link></td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  </DashboardLayout>;
 }
+
 function AdminDashboard() {
   return <DashboardLayout role="Admin"><AdminOverviewContent/></DashboardLayout>;
 }
