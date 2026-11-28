@@ -25,10 +25,13 @@ class RegisterSerializer(serializers.Serializer):
     phone = serializers.RegexField(
         regex=r"^\+[1-9]\d{7,14}$",
         max_length=16,
-        required=False,
-        allow_null=True,
-        allow_blank=True,
-        error_messages={"invalid": "Use international phone format, for example +919876543210."},
+        required=True,
+        allow_null=False,
+        allow_blank=False,
+        error_messages={
+            "invalid": "Use international phone format, for example +919876543210.",
+            "required": "A mobile number is required for every passenger and driver account.",
+        },
     )
     password = serializers.CharField(write_only=True, min_length=8, trim_whitespace=False)
     role = serializers.ChoiceField(choices=(User.Role.PASSENGER, User.Role.DRIVER))
@@ -43,7 +46,7 @@ class RegisterSerializer(serializers.Serializer):
     def validate_phone(self, value):
         value = value.strip() if isinstance(value, str) else value
         if not value:
-            return None
+            raise serializers.ValidationError("A registered mobile number is required.")
         if User.objects.filter(phone=value).exists():
             raise serializers.ValidationError("An account with this mobile number already exists.")
         return value
@@ -82,6 +85,21 @@ class RegisterSerializer(serializers.Serializer):
             **validated_data,
         )
         return user
+
+
+
+class CurrentUserPhoneSerializer(serializers.Serializer):
+    phone = serializers.RegexField(
+        regex=r"^\+[1-9]\d{7,14}$",
+        max_length=16,
+        error_messages={"invalid": "Use international phone format, for example +919876543210."},
+    )
+
+    def validate_phone(self, value):
+        user = self.context["request"].user
+        if User.objects.filter(phone=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("This mobile number is already linked to another account.")
+        return value
 
 
 class WayTogetherTokenSerializer(TokenObtainPairSerializer):
