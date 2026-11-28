@@ -136,12 +136,26 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const headers = new Headers(options.headers);
   if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  if (authenticated && accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
+  if (authenticated && !accessToken) {
+    const refreshed = refreshToken ? await refreshAccessToken() : false;
+    if (!refreshed || !accessToken) {
+      clearAuthTokens();
+      throw new Error("Your sign-in session has expired. Please sign in again.");
+    }
+  }
+
+  if (authenticated && accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
   let response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
-  if (authenticated && response.status === 401 && await refreshAccessToken()) {
-    headers.set("Authorization", `Bearer ${accessToken}`);
-    response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  if (authenticated && response.status === 401) {
+    if (await refreshAccessToken()) {
+      headers.set("Authorization", `Bearer ${accessToken}`);
+      response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+    }
+    if (response.status === 401) {
+      clearAuthTokens();
+      throw new Error("Your sign-in session has expired. Please sign in again.");
+    }
   }
   return parseResponse<T>(response);
 }
