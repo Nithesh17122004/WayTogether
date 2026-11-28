@@ -142,3 +142,38 @@ class SandboxRefund(models.Model):
 
     def __str__(self):
         return f"Sandbox refund {self.reference}"
+
+
+class RazorpayPayment(models.Model):
+    """Razorpay Test Mode order and server-verified payment result."""
+    class Status(models.TextChoices):
+        CREATED = "created", "Order created"
+        CAPTURED = "captured", "Payment captured"
+        FAILED = "failed", "Payment failed"
+
+    contribution = models.ForeignKey(
+        PassengerContribution, on_delete=models.PROTECT, related_name="razorpay_payments"
+    )
+    order_id = models.CharField(max_length=64, unique=True)
+    payment_id = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.CREATED)
+    amount = models.DecimalField(max_digits=11, decimal_places=2)
+    currency = models.CharField(max_length=3, default="INR")
+    test_mode = models.BooleanField(default=True)
+    failure_reason = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("contribution",), condition=Q(status="created"),
+                name="one_open_razorpay_order_per_share",
+            ),
+        ]
+        indexes = [models.Index(fields=("status", "created_at"), name="razorpay_status_date_idx")]
+
+    def __str__(self):
+        return f"Razorpay test order {self.order_id} · {self.status}"
