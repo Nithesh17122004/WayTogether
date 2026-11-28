@@ -4,9 +4,9 @@ The management command preserves:
 - Platform administrator accounts (role=admin, staff accounts and superusers).
 - Published journeys that have not departed yet.
 - The driver account, driver profile and vehicle records needed by each retained journey.
-- Current approved driver/vehicle verification documents required to keep retained routes' verified status valid.
+- Approved driver/vehicle verification documents required to keep retained routes' verified status valid.
 
-It removes other accounts, non-upcoming journeys, bookings, finance/payment records, notifications, messages, emergency contacts, safety reports, reviews and unrelated, outdated or unapproved identity/vehicle verification submissions. Current approved driver/vehicle documents tied to a retained route are kept until that route is no longer upcoming. Stored uploaded files for deleted verification submissions and deleted driver profiles are deleted after the database transaction commits.
+It removes other accounts, non-upcoming journeys, bookings, finance/payment records, notifications, messages, emergency contacts, safety reports, reviews and unrelated, outdated or unapproved identity/vehicle verification submissions. Approved driver/vehicle documents tied to a retained route are kept until that route is no longer upcoming. Stored uploaded files for deleted verification submissions and deleted driver profiles are deleted after the database transaction commits.
 
 ## Run safely on Render
 
