@@ -440,7 +440,7 @@ function ProfileContent({role}:{role:"Passenger"|"Driver"}) {
         <div className="wt-profile-meta">
           <span><small>Account type</small><b>{role}</b></span>
           <span><small>Email verification</small><b>{user.is_email_verified?"Verified":"Pending"}</b></span>
-          <span><small>Member since</small><b>{new Date().toLocaleDateString("en-IN",{month:"long",year:"numeric"})}</b></span>
+          <span><small>Member since</small><b>{new Date(user.date_joined).toLocaleDateString("en-IN",{month:"long",year:"numeric"})}</b></span>
         </div>
       </section>
       <form className="wt-panel wt-profile-form" onSubmit={save}>
