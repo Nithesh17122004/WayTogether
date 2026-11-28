@@ -1,5 +1,5 @@
 from django.apps import apps
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -68,6 +68,10 @@ class Command(BaseCommand):
             Q(role="admin") | Q(is_staff=True) | Q(is_superuser=True)
         )
         admin_ids = set(admins.values_list("id", flat=True))
+        if options["execute"] and not admin_ids:
+            raise CommandError(
+                "No admin/staff/superuser account was found. Refusing to delete user accounts."
+            )
         keep_user_ids = admin_ids | required_driver_ids
 
         VerificationDocument = apps.get_model("drivers", "VerificationDocument")
