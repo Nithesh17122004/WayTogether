@@ -156,8 +156,10 @@ class CurrentUserView(APIView):
             context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
-        request.user.phone = serializer.validated_data["phone"]
-        request.user.save(update_fields=["phone"])
+        for field in ("first_name", "last_name", "phone"):
+            if field in serializer.validated_data:
+                setattr(request.user, field, serializer.validated_data[field])
+        request.user.save(update_fields=["first_name", "last_name", "phone"])
         return Response(UserPublicSerializer(request.user).data)
 
 

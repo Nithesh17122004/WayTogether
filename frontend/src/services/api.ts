@@ -56,6 +56,7 @@ export type AuthUser = {
   display_name: string;
   role: "passenger" | "driver" | "admin";
   is_email_verified: boolean;
+  date_joined: string;
 };
 
 const storedTokens = readStoredTokens();

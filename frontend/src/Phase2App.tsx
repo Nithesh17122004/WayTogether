@@ -1,5 +1,5 @@
 import "./phase2.css";
-import { apiRequest, downloadPrivateFile, getCurrentUser, hasAuthSession, logoutCurrentSession, setAuthTokens } from "./services/api";
+import { apiRequest, downloadPrivateFile, getCurrentUser, hasAuthSession, logoutCurrentSession, setAuthTokens, type AuthUser } from "./services/api";
 import { JourneyDetailContent, JourneyPublishContent, JourneySearchContent, MyJourneysContent } from "./pages/JourneyPages";
 import { DriverBookingRequestsContent, PassengerBookingsContent } from "./pages/BookingPages";
 import { getMyJourneys, getUpcomingJourneys, type JourneyRecord } from "./services/journeys";
@@ -281,7 +281,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   </div></main></PublicLayout>;
 }
 
-const passengerMenu=[{label:"Overview",to:"/dashboard/passenger",icon:LayoutDashboard},{label:"Identity verification",to:"/dashboard/passenger/verification",icon:FileCheck2},{label:"My bookings",to:"/dashboard/passenger/bookings",icon:CalendarDays},{label:"Expense contributions",to:"/dashboard/passenger/finance",icon:Wallet},{label:"Messages",to:"/dashboard/passenger/messages",icon:MessageCircle},{label:"Notifications",to:"/dashboard/passenger/notifications",icon:Bell},{label:"Safety centre",to:"/dashboard/passenger/safety",icon:ShieldCheck},{label:"Reviews",to:"/dashboard/passenger/reviews",icon:Star},{label:"Saved journeys",to:"/dashboard/passenger",icon:Compass},{label:"Profile",to:"/dashboard/passenger",icon:Settings}];
+const passengerMenu=[{label:"Overview",to:"/dashboard/passenger",icon:LayoutDashboard},{label:"Identity verification",to:"/dashboard/passenger/verification",icon:FileCheck2},{label:"My bookings",to:"/dashboard/passenger/bookings",icon:CalendarDays},{label:"Expense contributions",to:"/dashboard/passenger/finance",icon:Wallet},{label:"Messages",to:"/dashboard/passenger/messages",icon:MessageCircle},{label:"Notifications",to:"/dashboard/passenger/notifications",icon:Bell},{label:"Safety centre",to:"/dashboard/passenger/safety",icon:ShieldCheck},{label:"Reviews",to:"/dashboard/passenger/reviews",icon:Star},{label:"Saved journeys",to:"/dashboard/passenger",icon:Compass},{label:"Profile",to:"/dashboard/passenger/profile",icon:Settings}];
 function DashboardLayout({role,children}:{role:"Passenger"|"Driver"|"Admin";children:ReactNode}) {
   const [open,setOpen]=useState(false);
   const [authorised,setAuthorised]=useState(false);
@@ -311,7 +311,7 @@ function DashboardLayout({role,children}:{role:"Passenger"|"Driver"|"Admin";chil
     return()=>{active=false;};
   },[role,navigate,authRetry]);
   const signOut=async()=>{await logoutCurrentSession();navigate("/login",{replace:true});};
-  const links=role==="Driver"?[{label:"Overview",to:"/dashboard/driver",icon:LayoutDashboard},{label:"My journeys",to:"/dashboard/driver/journeys",icon:CarFront},{label:"Booking requests",to:"/dashboard/driver/bookings",icon:Users},{label:"Expense records",to:"/dashboard/driver/finance",icon:Wallet},{label:"Messages",to:"/dashboard/driver/messages",icon:MessageCircle},{label:"Notifications",to:"/dashboard/driver/notifications",icon:Bell},{label:"Safety centre",to:"/dashboard/driver/safety",icon:ShieldCheck},{label:"Reviews",to:"/dashboard/driver/reviews",icon:Star},{label:"Vehicle & documents",to:"/driver/verification",icon:FileCheck2},{label:"Profile",to:"/dashboard/driver",icon:Settings}]:role==="Admin"?[{label:"Overview",to:"/admin",icon:LayoutDashboard},{label:"Users",to:"/admin/users",icon:Users},{label:"Driver documents",to:"/admin/verification",icon:FileCheck2},{label:"Passenger identity",to:"/admin/passenger-verification",icon:ShieldCheck},{label:"Journeys",to:"/admin/journeys",icon:CarFront},{label:"Bookings",to:"/admin/bookings",icon:CalendarDays},{label:"Expense ledger",to:"/admin/finance",icon:Wallet},{label:"Safety reports",to:"/admin/safety",icon:ShieldCheck},{label:"Database cleanup",to:"/admin/database-cleanup",icon:ShieldCheck}]:passengerMenu;
+  const links=role==="Driver"?[{label:"Overview",to:"/dashboard/driver",icon:LayoutDashboard},{label:"My journeys",to:"/dashboard/driver/journeys",icon:CarFront},{label:"Booking requests",to:"/dashboard/driver/bookings",icon:Users},{label:"Expense records",to:"/dashboard/driver/finance",icon:Wallet},{label:"Messages",to:"/dashboard/driver/messages",icon:MessageCircle},{label:"Notifications",to:"/dashboard/driver/notifications",icon:Bell},{label:"Safety centre",to:"/dashboard/driver/safety",icon:ShieldCheck},{label:"Reviews",to:"/dashboard/driver/reviews",icon:Star},{label:"Vehicle & documents",to:"/driver/verification",icon:FileCheck2},{label:"Profile",to:"/dashboard/driver/profile",icon:Settings}]:role==="Admin"?[{label:"Overview",to:"/admin",icon:LayoutDashboard},{label:"Users",to:"/admin/users",icon:Users},{label:"Driver documents",to:"/admin/verification",icon:FileCheck2},{label:"Passenger identity",to:"/admin/passenger-verification",icon:ShieldCheck},{label:"Journeys",to:"/admin/journeys",icon:CarFront},{label:"Bookings",to:"/admin/bookings",icon:CalendarDays},{label:"Expense ledger",to:"/admin/finance",icon:Wallet},{label:"Safety reports",to:"/admin/safety",icon:ShieldCheck},{label:"Database cleanup",to:"/admin/database-cleanup",icon:ShieldCheck}]:passengerMenu;
   if(!authorised)return <main className="wt-auth-wait" role={authError ? "alert" : "status"}>
     {authError ? <div><p>{authError}</p><button className="wt-btn wt-btn-primary" type="button" onClick={()=>setAuthRetry(value=>value+1)}>Try again</button></div> : "Checking your account access…"}
   </main>;
@@ -355,6 +355,120 @@ function StatusPill({status}:{status:string}) {
   return <span className={"wt-review-pill " + tone}>{status.replaceAll("_"," ")}</span>;
 }
 
+function ProfileContent({role}:{role:"Passenger"|"Driver"}) {
+  const [user,setUser] = useState<AuthUser|null>(null);
+  const [driverProfile,setDriverProfile] = useState<DriverProfileRecord|null>(null);
+  const [firstName,setFirstName] = useState("");
+  const [lastName,setLastName] = useState("");
+  const [phone,setPhone] = useState("");
+  const [city,setCity] = useState("");
+  const [state,setState] = useState("");
+  const [bio,setBio] = useState("");
+  const [loading,setLoading] = useState(true);
+  const [saving,setSaving] = useState(false);
+  const [error,setError] = useState("");
+  const [notice,setNotice] = useState("");
+
+  useEffect(()=>{
+    let active=true;
+    const load=async()=>{
+      setLoading(true);setError("");
+      try{
+        const current=await getCurrentUser();
+        let driverData:DriverProfileRecord|null=null;
+        if(role==="Driver"){
+          driverData=await apiRequest<DriverProfileRecord>("/drivers/profile/",{},true);
+        }
+        if(!active)return;
+        setUser(current);
+        setFirstName(current.first_name??"");
+        setLastName(current.last_name??"");
+        setPhone(current.phone??"");
+        if(driverData){
+          setDriverProfile(driverData);
+          setCity(driverData.city??"");
+          setState(driverData.state??"");
+          setBio(driverData.bio??"");
+        }
+      }catch(err){
+        if(active)setError(err instanceof Error?err.message:"Your profile could not be loaded. Please retry.");
+      }finally{if(active)setLoading(false);}
+    };
+    void load();
+    return()=>{active=false;};
+  },[role]);
+
+  const save=async(event:FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();setSaving(true);setError("");setNotice("");
+    try{
+      if(role==="Driver"){
+        const updatedDriver=await apiRequest<DriverProfileRecord>("/drivers/profile/",{
+          method:"PATCH",
+          body:JSON.stringify({city:city.trim(),state:state.trim(),bio:bio.trim()}),
+        },true);
+        setDriverProfile(updatedDriver);
+      }
+      const updatedUser=await apiRequest<AuthUser>("/auth/me/",{
+        method:"PATCH",
+        body:JSON.stringify({first_name:firstName.trim(),last_name:lastName.trim(),phone:phone.trim()}),
+      },true);
+      setUser(updatedUser);
+      setFirstName(updatedUser.first_name??"");
+      setLastName(updatedUser.last_name??"");
+      setPhone(updatedUser.phone??"");
+      setNotice("Your profile has been saved successfully.");
+    }catch(err){
+      setError(err instanceof Error?err.message:"Your profile could not be saved. Check the details and try again.");
+    }finally{setSaving(false);}
+  };
+
+  const initials=[firstName.trim()[0],lastName.trim()[0]].filter(Boolean).join("").toUpperCase()||user?.email?.[0]?.toUpperCase()||"U";
+  return <div className="wt-market-dashboard-page wt-profile-page">
+    <div className="wt-dash-heading">
+      <div><Eyebrow>ACCOUNT SETTINGS</Eyebrow><h1>Your profile.</h1><p>Keep your account details up to date for a smoother WayTogether experience.</p></div>
+      {role==="Driver"&&driverProfile&&<StatusPill status={driverProfile.verification_status}/>}
+    </div>
+    {error&&<div className="wt-market-notice error" role="alert">{error}</div>}
+    {notice&&<div className="wt-market-notice success" role="status">{notice}</div>}
+    {loading?<section className="wt-panel wt-profile-loading">Loading your account details…</section>:user&&<>
+      <section className="wt-panel wt-profile-card">
+        <div className="wt-profile-identity">
+          <span className="wt-profile-avatar">{initials}</span>
+          <span><b>{user.display_name||user.email}</b><small>{user.email}</small></span>
+          <StatusPill status={user.is_email_verified?"approved":"pending"}/>
+        </div>
+        <div className="wt-profile-meta">
+          <span><small>Account type</small><b>{role}</b></span>
+          <span><small>Email verification</small><b>{user.is_email_verified?"Verified":"Pending"}</b></span>
+          <span><small>Member since</small><b>{new Date(user.date_joined).toLocaleDateString("en-IN",{month:"long",year:"numeric"})}</b></span>
+        </div>
+      </section>
+      <form className="wt-panel wt-profile-form" onSubmit={save}>
+        <div className="wt-panel-heading"><div><h2>Personal information</h2><p>Your email address is read-only. Contact support if it needs to be changed.</p></div></div>
+        <div className="wt-profile-form-grid">
+          <label className="wt-field"><span>First name</span><input value={firstName} onChange={e=>setFirstName(e.target.value)} maxLength={150} autoComplete="given-name" required/></label>
+          <label className="wt-field"><span>Last name</span><input value={lastName} onChange={e=>setLastName(e.target.value)} maxLength={150} autoComplete="family-name"/></label>
+          <label className="wt-field wt-span-2"><span>Email address</span><input value={user.email} readOnly disabled/></label>
+          <label className="wt-field wt-span-2"><span>Mobile number</span><input type="tel" inputMode="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+919876543210" autoComplete="tel" required/><small>Use international format, for example +919876543210.</small></label>
+        </div>
+        {role==="Driver"&&<>
+          <div className="wt-panel-heading wt-profile-subheading"><div><h2>Driver profile</h2><p>These details appear in your driver workspace and can help fellow travellers recognise your profile.</p></div></div>
+          <div className="wt-profile-form-grid">
+            <label className="wt-field"><span>City</span><input value={city} onChange={e=>setCity(e.target.value)} maxLength={100} placeholder="Your city"/></label>
+            <label className="wt-field"><span>State</span><input value={state} onChange={e=>setState(e.target.value)} maxLength={100} placeholder="Your state"/></label>
+            <label className="wt-field wt-span-2"><span>Short introduction</span><textarea value={bio} onChange={e=>setBio(e.target.value)} maxLength={500} rows={4} placeholder="Write a short introduction for fellow travellers."/></label>
+          </div>
+          <div className="wt-profile-photo-status">
+            {driverProfile?.driver_photo_url?<img src={driverProfile.driver_photo_url} alt="Approved driver photo"/>:<span className="wt-profile-avatar"><ShieldCheck/></span>}
+            <span><b>Driver face photo</b><small>{driverProfile?.driver_photo_url?"Your approved face photo is used on published journeys.":"Submit your driver face photo in Vehicle & documents. It appears after administrator approval."}</small></span>
+            <Link className="wt-text-link" to="/driver/verification">Manage verification</Link>
+          </div>
+        </>}
+        <div className="wt-profile-form-actions"><button className="wt-btn wt-btn-primary" type="submit" disabled={saving}>{saving?"Saving profile…":"Save changes"} <Check size={15}/></button></div>
+      </form>
+    </>}
+  </div>;
+}
 
 type PassengerKycStatus = {
   status: string;
@@ -922,7 +1036,7 @@ export default function Phase2App() {
   return <BrowserRouter><Routes>
     <Route path="/" element={<HomePage/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/journeys/:id" element={<JourneyDetailPage/>}/><Route path="/publish" element={<PublishPage/>}/>
     <Route path="/login" element={<AuthPage mode="login"/>}/><Route path="/register" element={<AuthPage mode="register"/>}/>
-    <Route path="/dashboard/passenger" element={<PassengerDashboard/>}/><Route path="/dashboard/passenger/verification" element={<PassengerVerificationPage/>}/><Route path="/dashboard/passenger/bookings" element={<DashboardLayout role="Passenger"><PassengerBookingsContent/></DashboardLayout>}/><Route path="/dashboard/passenger/finance" element={<DashboardLayout role="Passenger"><PassengerFinanceContent/></DashboardLayout>}/><Route path="/dashboard/passenger/messages" element={<DashboardLayout role="Passenger"><MessagesContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/notifications" element={<DashboardLayout role="Passenger"><NotificationCenterContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/safety" element={<DashboardLayout role="Passenger"><SafetyCenterContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/reviews" element={<DashboardLayout role="Passenger"><JourneyReviewsContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/driver" element={<DriverDashboard/>}/><Route path="/dashboard/driver/bookings" element={<DashboardLayout role="Driver"><DriverBookingRequestsContent/></DashboardLayout>}/><Route path="/dashboard/driver/finance" element={<DashboardLayout role="Driver"><DriverFinanceContent/></DashboardLayout>}/><Route path="/dashboard/driver/messages" element={<DashboardLayout role="Driver"><MessagesContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/notifications" element={<DashboardLayout role="Driver"><NotificationCenterContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/safety" element={<DashboardLayout role="Driver"><SafetyCenterContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/reviews" element={<DashboardLayout role="Driver"><JourneyReviewsContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/journeys" element={<DashboardLayout role="Driver"><MyJourneysContent/></DashboardLayout>}/><Route path="/driver/verification" element={<DriverVerificationPage/>}/><Route path="/admin" element={<AdminDashboard/>}/><Route path="/admin/users" element={<DashboardLayout role="Admin"><AdminUsersContent/></DashboardLayout>}/><Route path="/admin/verification" element={<AdminVerificationPage/>}/><Route path="/admin/passenger-verification" element={<AdminPassengerVerificationPage/>}/><Route path="/admin/journeys" element={<DashboardLayout role="Admin"><AdminJourneysContent/></DashboardLayout>}/><Route path="/admin/bookings" element={<DashboardLayout role="Admin"><AdminBookingsContent/></DashboardLayout>}/><Route path="/admin/finance" element={<DashboardLayout role="Admin"><AdminExpenseLedgerContent/></DashboardLayout>}/><Route path="/admin/database-cleanup" element={<DashboardLayout role="Admin"><AdminDatabaseCleanupContent/></DashboardLayout>}/><Route path="/admin/safety" element={<DashboardLayout role="Admin"><AdminSafetyReportsContent/></DashboardLayout>}/>
+    <Route path="/dashboard/passenger" element={<PassengerDashboard/>}/><Route path="/dashboard/passenger/profile" element={<DashboardLayout role="Passenger"><ProfileContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/verification" element={<PassengerVerificationPage/>}/><Route path="/dashboard/passenger/bookings" element={<DashboardLayout role="Passenger"><PassengerBookingsContent/></DashboardLayout>}/><Route path="/dashboard/passenger/finance" element={<DashboardLayout role="Passenger"><PassengerFinanceContent/></DashboardLayout>}/><Route path="/dashboard/passenger/messages" element={<DashboardLayout role="Passenger"><MessagesContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/notifications" element={<DashboardLayout role="Passenger"><NotificationCenterContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/safety" element={<DashboardLayout role="Passenger"><SafetyCenterContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/passenger/reviews" element={<DashboardLayout role="Passenger"><JourneyReviewsContent role="Passenger"/></DashboardLayout>}/><Route path="/dashboard/driver" element={<DriverDashboard/>}/><Route path="/dashboard/driver/profile" element={<DashboardLayout role="Driver"><ProfileContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/bookings" element={<DashboardLayout role="Driver"><DriverBookingRequestsContent/></DashboardLayout>}/><Route path="/dashboard/driver/finance" element={<DashboardLayout role="Driver"><DriverFinanceContent/></DashboardLayout>}/><Route path="/dashboard/driver/messages" element={<DashboardLayout role="Driver"><MessagesContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/notifications" element={<DashboardLayout role="Driver"><NotificationCenterContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/safety" element={<DashboardLayout role="Driver"><SafetyCenterContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/reviews" element={<DashboardLayout role="Driver"><JourneyReviewsContent role="Driver"/></DashboardLayout>}/><Route path="/dashboard/driver/journeys" element={<DashboardLayout role="Driver"><MyJourneysContent/></DashboardLayout>}/><Route path="/driver/verification" element={<DriverVerificationPage/>}/><Route path="/admin" element={<AdminDashboard/>}/><Route path="/admin/users" element={<DashboardLayout role="Admin"><AdminUsersContent/></DashboardLayout>}/><Route path="/admin/verification" element={<AdminVerificationPage/>}/><Route path="/admin/passenger-verification" element={<AdminPassengerVerificationPage/>}/><Route path="/admin/journeys" element={<DashboardLayout role="Admin"><AdminJourneysContent/></DashboardLayout>}/><Route path="/admin/bookings" element={<DashboardLayout role="Admin"><AdminBookingsContent/></DashboardLayout>}/><Route path="/admin/finance" element={<DashboardLayout role="Admin"><AdminExpenseLedgerContent/></DashboardLayout>}/><Route path="/admin/database-cleanup" element={<DashboardLayout role="Admin"><AdminDatabaseCleanupContent/></DashboardLayout>}/><Route path="/admin/safety" element={<DashboardLayout role="Admin"><AdminSafetyReportsContent/></DashboardLayout>}/>
     <Route path="*" element={<NotFound/>}/>
   </Routes></BrowserRouter>;
 }
