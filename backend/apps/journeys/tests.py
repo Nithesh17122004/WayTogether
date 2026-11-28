@@ -618,6 +618,10 @@ class BookingApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         booking = Booking.objects.get(pk=response.data["booking"]["id"])
         self.assertEqual(booking.status, Booking.Status.PENDING)
+        self.assertEqual(response.data["booking"]["driver_amount_per_passenger"], "350.00")
+        self.assertEqual(response.data["booking"]["platform_fee_per_passenger"], "105.00")
+        self.assertEqual(response.data["booking"]["passenger_total_per_passenger"], "455.00")
+        self.assertEqual(response.data["booking"]["estimated_contribution_total"], "455.00")
 
         journey_response = self.client.get(f"/api/v1/journeys/{journey.pk}/")
         self.assertEqual(journey_response.status_code, status.HTTP_200_OK)
