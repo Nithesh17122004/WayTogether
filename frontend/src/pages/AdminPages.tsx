@@ -79,7 +79,7 @@ export function AdminOverviewContent() {
         <div><span>Passenger cost contributions recorded</span><b>{money(data.expense_sharing.passenger_contributions_total_inr)}</b></div>
         <div><span>Driver's own expense share</span><b>{money(data.expense_sharing.driver_own_shares_total_inr)}</b></div>
         <p><ShieldCheck size={15}/>{data.expense_sharing.notice}</p>
-        <small>{data.expense_sharing.sandbox_payment_attempts} sandbox payment simulations recorded · no real transactions</small>
+        <small>{data.expense_sharing.razorpay_test_payment_attempts} Razorpay Test Mode transactions recorded · no real funds moved</small>
       </section>
     </>}
   </div>;
