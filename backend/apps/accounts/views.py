@@ -166,8 +166,14 @@ class PassengerVerificationView(APIView):
             return denied
         verification = PassengerVerification.objects.filter(user=request.user).first()
         if not verification:
-            return Response({"status": "not_submitted", "review_note": ""})
-        return Response(PassengerVerificationStatusSerializer(verification).data)
+            return Response({
+                "status": "not_submitted",
+                "review_note": "",
+                "uploads_enabled": settings.PRIVATE_MEDIA_STORAGE_READY,
+            })
+        data = PassengerVerificationStatusSerializer(verification).data
+        data["uploads_enabled"] = settings.PRIVATE_MEDIA_STORAGE_READY
+        return Response(data)
 
     def post(self, request):
         denied = self._ensure_passenger(request)
