@@ -41,8 +41,8 @@ function PublicHeader() {
       if (!active) return;
       setWorkspace(user.role === "admin" ? "/admin" : user.role === "driver" ? "/dashboard/driver" : "/dashboard/passenger");
     }).catch(() => {
-      // Keep the saved session and workspace link through a temporary API outage.
-      if (active && hasAuthSession()) setSignedIn(true);
+      // A 401/expired refresh clears the saved session; transient outages do not.
+      if (active) setSignedIn(hasAuthSession());
     });
     return () => { active = false; };
   }, []);
