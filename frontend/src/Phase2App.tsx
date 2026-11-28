@@ -426,7 +426,7 @@ function PassengerVerificationPage() {
   return <DashboardLayout role="Passenger">
     <div className="wt-dash-heading"><div><Eyebrow>PASSENGER IDENTITY</Eyebrow><h1>Verify your passenger profile.</h1><p>Submit your identity proof and a clear profile photo for manual review.</p></div><StatusPill status={verification.status}/></div>
     <div className="wt-verification-intro"><ShieldCheck/><div><b>Private manual verification</b><small>Files are private and available only to you and authorised administrators. Do not upload a full unmasked Aadhaar number or biometric data.</small></div><StatusPill status={verification.status}/></div>
-    {error&&<p className="wt-auth-error" role="alert">{error}</p>}{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
+    {notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
     <section className="wt-panel wt-verification-card">
       <div className="wt-panel-heading"><div><h2>Registered mobile number</h2><p>Required for all passenger accounts and shared only with the other participant after successful payment.</p></div>{phoneSaved?<StatusPill status="approved"/>:<StatusPill status="pending"/>}</div>
       <form className="wt-profile-fields" onSubmit={savePhone}>
