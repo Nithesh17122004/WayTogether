@@ -10,7 +10,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.drivers.models import DriverProfile, Vehicle
+from apps.drivers.models import DriverProfile, Vehicle, VerificationDocument
 from apps.bookings.models import Booking
 from apps.trust.models import Notification
 from apps.trust.services import notify
@@ -66,7 +66,9 @@ def _published_queryset():
             driver__is_active=True,
             driver__is_email_verified=True,
             driver__driver_profile__verification_status=DriverProfile.VerificationStatus.APPROVED,
-            driver__driver_profile__profile_photo__gt="",
+            driver__driver_documents__document_type=VerificationDocument.DocumentType.DRIVER_PHOTO,
+            driver__driver_documents__review_status=VerificationDocument.ReviewStatus.APPROVED,
+            driver__driver_documents__is_current=True,
             vehicle__verification_status=Vehicle.VerificationStatus.APPROVED,
         )
         .select_related("driver", "vehicle", "driver__driver_profile")
