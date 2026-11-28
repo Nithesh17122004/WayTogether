@@ -44,6 +44,10 @@ export type PassengerContributionRecord = {
   driver_name: string;
   seat_count: number;
   per_seat_amount: string;
+  driver_amount_per_seat: string;
+  platform_fee_per_seat: string;
+  driver_amount_total: string;
+  platform_fee_total: string;
   total_amount: string;
   currency: "INR";
   settlement_id: number;
@@ -140,7 +144,7 @@ export async function launchRazorpayCheckout(args: {
     amount: args.amount,
     currency: args.currency,
     name: "WayTogether",
-    description: "Shared journey expense contribution · Test Mode",
+    description: "WayTogether passenger amount including platform fee · Test Mode",
     order_id: args.orderId,
     prefill: { name: args.customerName, email: args.customerEmail },
     theme: { color: "#286fff" },

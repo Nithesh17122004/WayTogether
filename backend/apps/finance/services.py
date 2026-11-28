@@ -82,8 +82,13 @@ def finalize_expense_settlement(*, journey_id, driver, data):
     total_paise = int((total * 100).to_integral_exact())
     people = passenger_seats + 1  # driver is a cost-sharing participant
     per_person_paise, remainder_paise = divmod(total_paise, people)
-    per_seat = (Decimal(per_person_paise) / 100).quantize(Decimal("0.01"))
     driver_share = (Decimal(per_person_paise + remainder_paise) / 100).quantize(Decimal("0.01"))
+    # Passenger checkout is based on the fixed amount accepted when the journey
+    # was published, plus the disclosed platform fee. The actual expense split
+    # remains in ExpenseSettlement as a separate post-trip cost record.
+    per_seat = journey.passenger_total_per_passenger.quantize(Decimal("0.01"))
+    if per_seat <= Decimal("0.00"):
+        raise ValidationError({"journey": "This journey has no valid published passenger amount."})
 
     settlement = ExpenseSettlement.objects.create(
         journey=journey,
@@ -100,7 +105,7 @@ def finalize_expense_settlement(*, journey_id, driver, data):
         finalized_at=timezone.now(),
     )
     for booking in bookings:
-        amount = (Decimal(per_person_paise * booking.seats_requested) / Decimal("100")).quantize(Decimal("0.01"))
+        amount = (per_seat * booking.seats_requested).quantize(Decimal("0.01"))
         PassengerContribution.objects.create(
             booking=booking,
             settlement=settlement,
@@ -113,8 +118,8 @@ def finalize_expense_settlement(*, journey_id, driver, data):
             recipient=booking.passenger,
             actor=driver,
             event_type=Notification.EventType.EXPENSE_FINALIZED,
-            title="Final expense contribution available",
-            body="The driver finalized this journey's eligible expenses. Your contribution is ready to review.",
+            title="Passenger payment available",
+            body="The actual journey-expense record is finalized. Your published passenger amount, including the 30% platform fee, is ready to review.",
             booking=booking,
             journey=journey,
         )

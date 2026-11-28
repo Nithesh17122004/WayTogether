@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -33,6 +33,10 @@ class Journey(models.Model):
     departure_time = models.TimeField()
     seats_offered = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(8)]
+    )
+    driver_amount_per_passenger = models.DecimalField(
+        max_digits=9, decimal_places=2, default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
     )
     fuel_expense = models.DecimalField(max_digits=9, decimal_places=2, default=0)
     toll_expense = models.DecimalField(max_digits=9, decimal_places=2, default=0)
@@ -69,11 +73,20 @@ class Journey(models.Model):
         )
 
     @property
+    def platform_fee_per_passenger(self):
+        """Disclosed 30% platform fee calculated on the driver's per-seat amount."""
+        return (self.driver_amount_per_passenger * Decimal("0.30")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+
+    @property
+    def passenger_total_per_passenger(self):
+        return self.driver_amount_per_passenger + self.platform_fee_per_passenger
+
+    @property
     def estimated_contribution_per_passenger(self):
-        # Early estimate assumes every offered passenger seat is occupied.
-        # Final expense allocation is recalculated at booking time in Phase 6.
-        people_count = self.seats_offered + 1  # includes the driver
-        return (self.estimated_total_expenses / people_count).quantize(Decimal("0.01"))
+        # Retain the legacy API field as an alias for the actual passenger total.
+        return self.passenger_total_per_passenger
 
     def __str__(self):
         return f"{self.origin_name} → {self.destination_name} on {self.travel_date}"

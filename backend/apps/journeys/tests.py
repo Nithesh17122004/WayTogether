@@ -105,6 +105,7 @@ class JourneyApiTests(APITestCase):
             "travel_date": (timezone.localdate() + timedelta(days=3)).isoformat(),
             "departure_time": "07:30",
             "seats_offered": 2,
+            "driver_amount_per_passenger": "350.00",
             "fuel_expense": "1200.00",
             "toll_expense": "250.00",
             "parking_expense": "0.00",
@@ -140,6 +141,7 @@ class JourneyApiTests(APITestCase):
             travel_date=travel_date or timezone.localdate() + timedelta(days=3),
             departure_time="07:30",
             seats_offered=2,
+            driver_amount_per_passenger=Decimal("350.00"),
             fuel_expense=Decimal("1200.00"),
             toll_expense=Decimal("250.00"),
             other_expense=Decimal("50.00"),
@@ -169,7 +171,9 @@ class JourneyApiTests(APITestCase):
         self.assertEqual(journey.stops.count(), 1)
         self.assertEqual(journey.stops.first().sequence, 1)
         self.assertEqual(response.data["estimated_total_expenses"], "1500.00")
-        self.assertEqual(response.data["estimated_contribution_per_passenger"], "500.00")
+        self.assertEqual(response.data["platform_fee_per_passenger"], "105.00")
+        self.assertEqual(response.data["passenger_total_per_passenger"], "455.00")
+        self.assertEqual(response.data["estimated_contribution_per_passenger"], "455.00")
 
     def test_passenger_cannot_create_a_journey(self):
         passenger = User.objects.create_user(
@@ -237,6 +241,20 @@ class JourneyApiTests(APITestCase):
         response = self.client.post(f"/api/v1/journeys/{created.data['id']}/publish/", {}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["journey"]["status"], Journey.Status.PUBLISHED)
+
+    def test_public_journey_detail_uses_approved_driver_document_not_duplicate_profile_photo(self):
+        driver, profile = self.create_driver(approved=True)
+        profile.profile_photo = ""
+        profile.save(update_fields=["profile_photo"])
+        vehicle = self.create_vehicle(driver, approved=True)
+        self.create_approved_documents(driver, vehicle)
+        journey = self.create_published_journey(driver, vehicle)
+
+        response = self.client.get(f"/api/v1/journeys/{journey.pk}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], journey.pk)
+        self.assertEqual(response.data["passenger_total_per_passenger"], "455.00")
 
     def test_driver_can_only_list_own_journeys(self):
         driver, _ = self.create_driver()
@@ -558,6 +576,7 @@ class BookingApiTests(APITestCase):
             travel_date=travel_date,
             departure_time="08:00",
             seats_offered=seats,
+            driver_amount_per_passenger=Decimal("350.00"),
             fuel_expense=Decimal("1200.00"),
             toll_expense=Decimal("250.00"),
             parking_expense=Decimal("0.00"),
@@ -599,6 +618,10 @@ class BookingApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         booking = Booking.objects.get(pk=response.data["booking"]["id"])
         self.assertEqual(booking.status, Booking.Status.PENDING)
+        self.assertEqual(response.data["booking"]["driver_amount_per_passenger"], "350.00")
+        self.assertEqual(response.data["booking"]["platform_fee_per_passenger"], "105.00")
+        self.assertEqual(response.data["booking"]["passenger_total_per_passenger"], "455.00")
+        self.assertEqual(response.data["booking"]["estimated_contribution_total"], "455.00")
 
         journey_response = self.client.get(f"/api/v1/journeys/{journey.pk}/")
         self.assertEqual(journey_response.status_code, status.HTTP_200_OK)
@@ -654,8 +677,8 @@ class BookingApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         booking = Booking.objects.get(pk=booking_id)
         self.assertEqual(booking.status, Booking.Status.CONFIRMED)
-        self.assertEqual(booking.estimated_contribution_per_passenger, Decimal("750.00"))
-        self.assertEqual(booking.estimated_contribution_total, Decimal("750.00"))
+        self.assertEqual(booking.estimated_contribution_per_passenger, Decimal("455.00"))
+        self.assertEqual(booking.estimated_contribution_total, Decimal("455.00"))
 
         journey_response = self.client.get(f"/api/v1/journeys/{journey.pk}/")
         self.assertEqual(journey_response.data["confirmed_seats"], 1)

@@ -57,15 +57,27 @@ class PassengerContributionSerializer(serializers.ModelSerializer):
     driver_name = serializers.CharField(source="booking.journey.driver.display_name", read_only=True)
     latest_payment = serializers.SerializerMethodField()
     settlement_id = serializers.IntegerField(read_only=True)
+    driver_amount_per_seat = serializers.DecimalField(source="booking.journey.driver_amount_per_passenger", max_digits=9, decimal_places=2, read_only=True)
+    platform_fee_per_seat = serializers.DecimalField(source="booking.journey.platform_fee_per_passenger", max_digits=9, decimal_places=2, read_only=True)
+    driver_amount_total = serializers.SerializerMethodField()
+    platform_fee_total = serializers.SerializerMethodField()
 
     class Meta:
         model = PassengerContribution
         fields = (
             "id", "booking_id", "journey_id", "origin_name", "destination_name",
             "travel_date", "driver_name", "seat_count", "per_seat_amount",
+            "driver_amount_per_seat", "platform_fee_per_seat",
+            "driver_amount_total", "platform_fee_total",
             "total_amount", "currency", "settlement_id", "created_at", "latest_payment",
         )
         read_only_fields = fields
+
+    def get_driver_amount_total(self, obj):
+        return obj.booking.journey.driver_amount_per_passenger * obj.seat_count
+
+    def get_platform_fee_total(self, obj):
+        return obj.booking.journey.platform_fee_per_passenger * obj.seat_count
 
     def get_latest_payment(self, obj):
         payment = obj.razorpay_payments.order_by("-created_at").first()

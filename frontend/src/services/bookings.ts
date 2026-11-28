@@ -17,6 +17,11 @@ export type BookingRecord = {
   request_message: string;
   driver_response: string;
   status: BookingStatus;
+  driver_amount_per_passenger: string;
+  platform_fee_per_passenger: string;
+  passenger_total_per_passenger: string;
+  driver_amount_total: string;
+  platform_fee_total: string;
   estimated_contribution_per_passenger: string;
   estimated_contribution_total: string;
   requested_at: string;

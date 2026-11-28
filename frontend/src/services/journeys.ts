@@ -37,6 +37,10 @@ export type JourneyRecord = {
   travel_date: string;
   departure_time: string;
   seats_offered: number;
+  driver_amount_per_passenger: string;
+  platform_fee_percent: string;
+  platform_fee_per_passenger: string;
+  passenger_total_per_passenger: string;
   confirmed_seats: number;
   available_seats: number;
   fuel_expense: string;
@@ -84,6 +88,7 @@ export type JourneyDraftPayload = {
   travel_date: string;
   departure_time: string;
   seats_offered: number;
+  driver_amount_per_passenger: string;
   fuel_expense: string;
   toll_expense: string;
   parking_expense: string;

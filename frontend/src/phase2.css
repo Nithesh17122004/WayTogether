@@ -1449,3 +1449,136 @@ body { background:#f5f7f8 !important; color:#263b4b; }
   .wt-admin-cleanup-panel,.wt-admin-cleanup-confirm { padding: 16px; }
   .wt-admin-cleanup-counts>div { padding: 10px 0; }
 }
+
+
+/* Readability and price breakdown refinements */
+.wt-public-signout {
+  padding: 0;
+  border: 0;
+  color: #dce5ff;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.wt-nav-actions .wt-public-signout { font-size: 12px; font-weight: 700; }
+.wt-market-page { font-size: 14px; }
+.wt-market-page .wt-breadcrumb { color: #b7c5e3; font-size: 12px; }
+.wt-market-page .wt-breadcrumb a { color: #c8d5f3; }
+.wt-market-page .wt-page-heading p,
+.wt-market-page .wt-market-help,
+.wt-market-page .wt-market-footnote,
+.wt-market-page .wt-route-preview-actions > span,
+.wt-market-page .wt-market-empty p {
+  color: #bac7e2;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.wt-market-page .wt-field > span {
+  color: #e0e8ff !important;
+  font-size: 13px;
+  font-weight: 750;
+}
+.wt-market-page .wt-field input:not([type="checkbox"]):not([type="radio"]),
+.wt-market-page .wt-field select,
+.wt-market-page .wt-field textarea {
+  min-height: 44px;
+  color: #f5f7ff !important;
+  border-color: rgba(174, 193, 239, .42) !important;
+  background: #0b1430 !important;
+  font-size: 14px !important;
+  line-height: 1.5;
+}
+.wt-market-page .wt-field textarea { min-height: 88px; padding: 11px 12px; }
+.wt-market-page .wt-field input::placeholder,
+.wt-market-page .wt-field textarea::placeholder { color: #aab8d6 !important; opacity: 1; }
+.wt-market-page .wt-field select option { color: #f7f8ff; background: #111a39; }
+.wt-market-page .wt-field input:focus,
+.wt-market-page .wt-field select:focus,
+.wt-market-page .wt-field textarea:focus {
+  border-color: #91a9ff !important;
+  box-shadow: 0 0 0 3px rgba(104, 135, 255, .22) !important;
+}
+.wt-market-page .wt-publish-section-title h2 { color: #f7f8ff; font-size: 17px; }
+.wt-market-page .wt-publish-section-title p { color: #b9c7e2; font-size: 12px; line-height: 1.6; }
+.wt-market-page .wt-field-hint { color: #b6c4e3; font-size: 11px; line-height: 1.6; }
+.wt-market-page .wt-expense-estimate {
+  padding: 15px;
+  border: 1px solid rgba(156, 180, 244, .28);
+  border-radius: 10px;
+  background: rgba(4, 11, 29, .62);
+}
+.wt-market-page .wt-expense-estimate > div { gap: 7px; }
+.wt-market-page .wt-expense-estimate small { color: #c2cfea; font-size: 12px; line-height: 1.5; }
+.wt-market-page .wt-expense-estimate b { color: #fff; font-size: 21px; }
+.wt-market-page .wt-price-breakdown { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.wt-market-page .wt-price-breakdown > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(166, 186, 239, .24);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .035);
+}
+.wt-market-page .wt-price-breakdown .wt-price-total {
+  border-color: rgba(105, 207, 196, .55);
+  background: rgba(38, 150, 140, .13);
+}
+.wt-market-page .wt-price-breakdown .wt-price-total b { color: #a9fff0; }
+.wt-market-page .wt-market-notice { font-size: 13px; line-height: 1.65; }
+.wt-market-page .wt-live-card-bottom small,
+.wt-market-page .wt-live-driver small,
+.wt-market-page .wt-live-seats,
+.wt-market-page .wt-summary-line,
+.wt-market-page .wt-booking-request-note,
+.wt-market-page .wt-market-results-heading > span {
+  color: #b7c5e2;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.wt-market-page .wt-live-card-bottom b { color: #fff; font-size: 22px; }
+.wt-market-page .wt-live-booking-panel .wt-summary-line b { color: #fff; font-size: 12px; }
+.wt-market-page .wt-booking-request-form h3 { color: #fff; font-size: 15px; }
+.wt-market-page .wt-price-summary {
+  display: grid;
+  gap: 9px;
+  padding: 13px;
+  border: 1px solid rgba(158, 181, 240, .28);
+  border-radius: 10px;
+  background: rgba(3, 8, 24, .42);
+}
+.wt-market-page .wt-price-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #c3cee7;
+  font-size: 12px;
+}
+.wt-market-page .wt-price-summary b { color: #f7f9ff; font-size: 14px; white-space: nowrap; }
+.wt-market-page .wt-price-summary .total {
+  padding-top: 10px;
+  border-top: 1px solid rgba(158, 181, 240, .22);
+  color: #e4edff;
+  font-weight: 800;
+}
+.wt-market-page .wt-price-summary .total b { color: #9ff5df; font-size: 19px; }
+.wt-market-page .wt-live-driver-profile small,
+.wt-market-page .wt-detail-stats small,
+.wt-market-page .wt-detail-stats b { color: #c0cce7; font-size: 12px; }
+.wt-market-page .wt-detail-stats b { color: #fff; }
+.wt-market-page .wt-btn { min-height: 44px; font-size: 13px; }
+.wt-market-page .wt-text-link { color: #c0c8ff; font-size: 12px; }
+.wt-market-page :focus-visible,
+.wt-dashboard-content :focus-visible {
+  outline: 3px solid #9eb3ff;
+  outline-offset: 3px;
+}
+.wt-dashboard-content .wt-table-wrap th { color: #aebbd8; font-size: 11px; }
+.wt-dashboard-content .wt-table-wrap td { color: #d0daf0; font-size: 12px; }
+.wt-dashboard-content .wt-table-wrap td b { color: #fff; font-size: 12px; }
+.wt-dashboard-content .wt-table-wrap td small { color: #b4c1dd; font-size: 10px; }
+@media (max-width: 620px) {
+  .wt-market-page .wt-price-breakdown { grid-template-columns: 1fr; }
+  .wt-market-page .wt-field > span { font-size: 13px; }
+  .wt-market-page .wt-field input:not([type="checkbox"]):not([type="radio"]),
+  .wt-market-page .wt-field select,
+  .wt-market-page .wt-field textarea { font-size: 16px !important; }
+}

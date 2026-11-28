@@ -25,14 +25,48 @@ function PreviewLabel() { return <span className="wt-preview-label">DOCUMENT WOR
 
 function PublicHeader() {
   const [open, setOpen] = useState(false);
+  const [signedIn, setSignedIn] = useState(hasAuthSession());
+  const [workspace, setWorkspace] = useState("/dashboard/passenger");
+  const navigate = useNavigate();
   const close = () => setOpen(false);
+
+  useEffect(() => {
+    let active = true;
+    if (!hasAuthSession()) {
+      setSignedIn(false);
+      return () => { active = false; };
+    }
+    setSignedIn(true);
+    getCurrentUser().then(user => {
+      if (!active) return;
+      setWorkspace(user.role === "admin" ? "/admin" : user.role === "driver" ? "/dashboard/driver" : "/dashboard/passenger");
+    }).catch(() => {
+      // A 401/expired refresh clears the saved session; transient outages do not.
+      if (active) setSignedIn(hasAuthSession());
+    });
+    return () => { active = false; };
+  }, []);
+
+  const signOut = async () => {
+    await logoutCurrentSession();
+    setSignedIn(false);
+    close();
+    navigate("/login", { replace: true });
+  };
+
   return <header className="wt-public-header"><div className="wt-container wt-nav">
     <Brand/>
     <nav className={open ? "wt-main-nav is-open" : "wt-main-nav"} aria-label="Main navigation">
       <a href="/#how-it-works" onClick={close}>How it works</a><Link to="/search" onClick={close}>Explore journeys</Link><a href="/#safety" onClick={close}>Safety</a><a href="/#about" onClick={close}>About</a>
-      <div className="wt-mobile-nav-cta"><Link className="wt-btn wt-btn-ghost" to="/login" onClick={close}>Log in</Link><Link className="wt-btn wt-btn-primary" to="/publish" onClick={close}>Share a journey <ArrowUpRight size={16}/></Link></div>
+      <div className="wt-mobile-nav-cta">
+        {signedIn ? <><Link className="wt-btn wt-btn-ghost" to={workspace} onClick={close}>My workspace</Link><button className="wt-btn wt-btn-ghost wt-public-signout" type="button" onClick={()=>void signOut()}>Sign out</button></> : <Link className="wt-btn wt-btn-ghost" to="/login" onClick={close}>Log in</Link>}
+        <Link className="wt-btn wt-btn-primary" to="/publish" onClick={close}>Share a journey <ArrowUpRight size={16}/></Link>
+      </div>
     </nav>
-    <div className="wt-nav-actions"><Link className="wt-login-link" to="/login">Log in</Link><Link className="wt-btn wt-btn-primary wt-nav-cta" to="/publish">Share a journey <ArrowUpRight size={16}/></Link></div>
+    <div className="wt-nav-actions">
+      {signedIn ? <><Link className="wt-login-link" to={workspace}>My workspace</Link><button className="wt-login-link wt-public-signout" type="button" onClick={()=>void signOut()}>Sign out</button></> : <Link className="wt-login-link" to="/login">Log in</Link>}
+      <Link className="wt-btn wt-btn-primary wt-nav-cta" to="/publish">Share a journey <ArrowUpRight size={16}/></Link>
+    </div>
     <button className="wt-menu-btn" onClick={()=>setOpen(!open)} aria-label={open?"Close menu":"Open menu"} aria-expanded={open}>{open?<X/>:<Menu/>}</button>
   </div></header>;
 }
@@ -61,7 +95,7 @@ function SearchForm({ compact = false }: { compact?: boolean }) {
       <button className="wt-btn wt-btn-primary wt-search-submit" type="submit"><Search size={16}/> Find journeys</button>
     </form>
     {notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
-    <p className="wt-search-disclaimer"><ShieldCheck size={14}/> Drivers share journeys they have already planned. Contributions are intended for eligible journey expenses.</p>
+    <p className="wt-search-disclaimer"><ShieldCheck size={14}/> Each journey shows the driver's amount and the 30% platform fee separately before you request a seat.</p>
   </div>;
 }
 
@@ -767,7 +801,7 @@ function PassengerDashboard() {
     <div className="wt-dash-metrics">
       <Metric label="Upcoming routes" value={loading ? "…" : String(journeys.length)} detail="Live published journeys" icon={CalendarDays}/>
       <Metric label="Seats available" value={loading ? "…" : String(availableSeats)} detail="Across upcoming routes" icon={Users}/>
-      <Metric label="Average estimated share" value={loading ? "…" : money(averageShare)} detail="Per passenger · indicative" icon={Wallet}/>
+      <Metric label="Average passenger total" value={loading ? "…" : money(averageShare)} detail="Per seat · includes 30% fee" icon={Wallet}/>
       <Metric label="Next departure" value={loading ? "…" : nextJourney ? dateLabel(nextJourney.travel_date) : "—"} detail={nextJourney ? nextJourney.departure_time.slice(0,5) : "No upcoming route"} icon={CarFront}/>
     </div>
     <section className="wt-panel wt-dash-section">
@@ -785,11 +819,11 @@ function PassengerDashboard() {
         </div>
       ) : (
         <div className="wt-table-wrap">
-          <table><thead><tr><th>Journey</th><th>Date &amp; time</th><th>Estimated share</th><th>Seats</th></tr></thead>
+          <table><thead><tr><th>Journey</th><th>Date &amp; time</th><th>Passenger pays</th><th>Seats</th></tr></thead>
             <tbody>{journeys.map(journey => <tr key={journey.id}>
               <td><Link className="wt-dashboard-journey-link" to={"/journeys/" + journey.id}><b>{journey.origin_name} → {journey.destination_name}</b><small>Verified driver · {journey.driver_name}</small></Link></td>
               <td>{dateLabel(journey.travel_date)} · {journey.departure_time.slice(0,5)}</td>
-              <td>{money(journey.estimated_contribution_per_passenger)}<small>Per passenger · indicative</small></td>
+              <td>{money(journey.passenger_total_per_passenger)}<small>Per seat · includes 30% fee</small></td>
               <td><span className={"wt-status " + (journey.available_seats > 0 ? "status-open" : "status-full")}>{journey.available_seats > 0 ? journey.available_seats + " available" : "Full"}</span></td>
             </tr>)}</tbody>
           </table>
@@ -842,14 +876,14 @@ function DriverDashboard() {
       <Link to="/publish" className="wt-btn wt-btn-primary">Share a journey <Plus size={15}/></Link>
     </div>
     <div className="wt-dash-banner">
-      <div><span><ShieldCheck size={18}/> DRIVER PRINCIPLE</span><b>Share the journey you already planned.</b><p>WayTogether is designed for eligible expense sharing, not profit-seeking passenger transport.</p></div>
+      <div><span><ShieldCheck size={18}/> TRANSPARENT PRICING</span><b>Share the journey you already planned.</b><p>Set your amount per passenger. The 30% platform fee and final passenger total are displayed separately.</p></div>
       <Link to="/dashboard/driver/bookings" className="wt-btn wt-btn-primary">Booking requests <Users size={15}/></Link>
     </div>
     <div className="wt-dash-metrics">
       <Metric label="Upcoming journeys" value={loading ? "…" : String(upcomingJourneys.length)} detail="Your live published routes" icon={CarFront}/>
       <Metric label="Seats available" value={loading ? "…" : String(availableSeats)} detail="Across upcoming journeys" icon={Users}/>
       <Metric label="Next departure" value={loading ? "…" : nextJourney ? dateLabel(nextJourney.travel_date) : "—"} detail={nextJourney ? nextJourney.departure_time.slice(0,5) : "No upcoming journey"} icon={CalendarDays}/>
-      <Metric label="Next estimated share" value={loading ? "…" : nextJourney ? money(nextJourney.estimated_contribution_per_passenger) : "—"} detail="Per passenger · indicative" icon={Wallet}/>
+      <Metric label="Next passenger total" value={loading ? "…" : nextJourney ? money(nextJourney.passenger_total_per_passenger) : "—"} detail="Per seat · includes 30% fee" icon={Wallet}/>
     </div>
     <section className="wt-panel wt-dash-section">
       <div className="wt-panel-heading"><div><h2>Your upcoming journeys</h2><p>Live published routes from your account.</p></div><Link to="/dashboard/driver/journeys" className="wt-text-link">Manage journeys <ArrowRight size={15}/></Link></div>
@@ -862,11 +896,11 @@ function DriverDashboard() {
         </div>
       ) : (
         <div className="wt-table-wrap">
-          <table><thead><tr><th>Route</th><th>Departure</th><th>Estimated share</th><th>Seats</th><th>Manage</th></tr></thead>
+          <table><thead><tr><th>Route</th><th>Departure</th><th>Passenger pays</th><th>Seats</th><th>Manage</th></tr></thead>
             <tbody>{upcomingJourneys.slice(0,5).map(journey=><tr key={journey.id}>
               <td><Link className="wt-dashboard-journey-link" to={"/journeys/"+journey.id}><b>{journey.origin_name} → {journey.destination_name}</b><small>Journey #{journey.id}</small></Link></td>
               <td>{dateLabel(journey.travel_date)} · {journey.departure_time.slice(0,5)}</td>
-              <td>{money(journey.estimated_contribution_per_passenger)}<small>Per passenger · indicative</small></td>
+              <td>{money(journey.passenger_total_per_passenger)}<small>Per seat · includes 30% fee</small></td>
               <td><span className={"wt-status "+(journey.available_seats>0?"status-open":"status-full")}>{journey.available_seats>0?journey.available_seats+" available":"Full"}</span></td>
               <td><Link className="wt-text-link" to="/dashboard/driver/journeys">View</Link></td>
             </tr>)}</tbody>
