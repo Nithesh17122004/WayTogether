@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
   CalendarDays, CarFront, FileCheck2,
-  IndianRupee, RefreshCw, Search, ShieldAlert, ShieldCheck, Users, Wallet,
+  IndianRupee, RefreshCw, Search, ShieldAlert, ShieldCheck, Users, Wallet, Database, Trash2,
 } from "lucide-react";
 import {
-  getAdminBookings, getAdminExpenseLedger, getAdminJourneys, getAdminOverview, getAdminUsers,
+  executeAdminDatabaseCleanup, getAdminBookings, getAdminDatabaseCleanupPreview,
+  getAdminExpenseLedger, getAdminJourneys, getAdminOverview, getAdminUsers,
   type AdminBookingRecord, type AdminJourneyRecord, type AdminLedgerRecord, type AdminOverview,
-  type AdminUserRecord,
+  type AdminUserRecord, type AdminCleanupPreview,
 } from "../services/admin";
 
 function AdminNotice({ text, error = false }: { text: string; error?: boolean }) {
@@ -204,5 +205,116 @@ export function AdminExpenseLedgerContent() {
       {loading?<AdminTableEmpty loading count={count}/>:records.length===0?<AdminTableEmpty loading={false} count={count}/>:<div className="wt-table-wrap"><table><thead><tr><th>Journey</th><th>Driver</th><th>Eligible total</th><th>Driver's own share</th><th>Passenger contributions</th><th>Seats</th><th>Finalised</th></tr></thead><tbody>{records.map(item=><tr key={item.id}><td><b>{item.origin_name} → {item.destination_name}</b><small>Journey #{item.journey_id}</small></td><td>{item.driver_name}</td><td>{money(item.eligible_total_inr)}</td><td>{money(item.driver_own_share_inr)}</td><td>{money(item.passenger_contribution_total_inr)}<small>{item.contribution_records} records</small></td><td>{item.passenger_seat_count}</td><td>{when(item.finalized_at)}</td></tr>)}</tbody></table></div>}
     </section>
     <p className="wt-admin-muted"><IndianRupee size={14}/> Displayed values are final cost-sharing allocations from database records. No payout, refund or live payment action is available in this workspace.</p>
+  </div>;
+}
+
+
+export function AdminDatabaseCleanupContent() {
+  const [preview,setPreview]=useState<AdminCleanupPreview|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState("");
+  const [notice,setNotice]=useState("");
+  const [confirmation,setConfirmation]=useState("");
+  const [backupAcknowledged,setBackupAcknowledged]=useState(false);
+  const [completed,setCompleted]=useState(false);
+
+  const load=async()=>{
+    setLoading(true);setError("");setNotice("");setConfirmation("");setBackupAcknowledged(false);
+    try{
+      const result=await getAdminDatabaseCleanupPreview();
+      setPreview(result);
+      setCompleted(Boolean(result.completed));
+      if(result.completed)setNotice(result.detail||"The one-time cleanup has already been completed.");
+    }catch(err){
+      setError(err instanceof Error?err.message:"Could not load the database cleanup preview.");
+    }finally{setLoading(false);}
+  };
+  useEffect(()=>{void load();},[]);
+
+  const execute=async()=>{
+    if(!preview?.preview_token)return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      const result=await executeAdminDatabaseCleanup({
+        confirmation,
+        backup_acknowledged:backupAcknowledged,
+        preview_token:preview.preview_token,
+      });
+      setPreview(result);
+      setCompleted(Boolean(result.completed));
+      setNotice(result.detail||"Database cleanup finished.");
+      setConfirmation("");
+      setBackupAcknowledged(false);
+    }catch(err){
+      const message=err instanceof Error?err.message:"Database cleanup could not be completed.";
+      setError(message);
+      if(message.toLowerCase().includes("preview")||message.toLowerCase().includes("changed"))void load();
+    }finally{setBusy(false);}
+  };
+
+  return <div className="wt-market-dashboard-page">
+    <AdminHeader
+      eyebrow="ADMINISTRATOR · DATABASE MAINTENANCE"
+      title="Database cleanup."
+      description="Remove demonstration and old application data while preserving administrator access and genuine upcoming journeys."
+      refresh={()=>void load()}
+      refreshing={loading||busy}
+    />
+    <div className="wt-admin-cleanup-warning">
+      <ShieldAlert size={21}/>
+      <div>
+        <b>Destructive action — review before executing</b>
+        <p>This permanently deletes selected application records. Take a database backup first. This tool is one-time only and cannot be run again from the browser after completion.</p>
+      </div>
+    </div>
+
+    {error&&<AdminNotice text={error} error/>}
+    {notice&&<AdminNotice text={notice}/>}
+
+    {loading?<div className="wt-market-empty"><RefreshCw className="wt-spin"/>Preparing a live database dry run…</div>:
+      completed?<section className="wt-panel wt-admin-cleanup-complete">
+        <ShieldCheck size={28}/>
+        <div><h2>Cleanup completed</h2><p>The one-time database cleanup is recorded. Re-running it from this browser is blocked.</p></div>
+      </section>:
+      preview?.dry_run?<>
+        <section className="wt-panel wt-admin-cleanup-panel">
+          <div className="wt-panel-heading">
+            <div><h2><Database size={18}/> Live dry-run summary</h2><p>Counts are read directly from your current PostgreSQL database. No records have been deleted.</p></div>
+            <span className="wt-booking-status wt-booking-confirmed">Dry run · no changes</span>
+          </div>
+          <div className="wt-admin-cleanup-counts">
+            {(preview.summary||[]).map(item=><div key={item.label}><span>{item.label}</span><b>{item.count.toLocaleString("en-IN")}</b></div>)}
+          </div>
+          <div className="wt-admin-cleanup-preserve">
+            <h3>Records that will be preserved</h3>
+            {(preview.preserves||[]).map(item=><p key={item}><ShieldCheck size={15}/>{item}</p>)}
+          </div>
+        </section>
+
+        <section className="wt-panel wt-admin-cleanup-confirm">
+          <h2>Confirm permanent cleanup</h2>
+          <p>Before proceeding, export or otherwise secure a backup of the database. The operation removes the counts shown above and cannot be undone from this dashboard.</p>
+          <label className="wt-admin-cleanup-checkbox">
+            <input type="checkbox" checked={backupAcknowledged} onChange={e=>setBackupAcknowledged(e.target.checked)}/>
+            <span>I have taken a database backup, or I understand and accept that this cleanup is irreversible.</span>
+          </label>
+          <label className="wt-field">
+            <span>Type this exact phrase to confirm</span>
+            <code className="wt-admin-cleanup-phrase">{preview.confirmation_phrase}</code>
+            <input value={confirmation} onChange={e=>setConfirmation(e.target.value)} autoComplete="off" placeholder="Enter the confirmation phrase"/>
+          </label>
+          <button
+            className="wt-btn wt-admin-cleanup-danger"
+            type="button"
+            disabled={busy||!backupAcknowledged||confirmation!==preview.confirmation_phrase||!preview.preview_token}
+            onClick={()=>void execute()}
+          >
+            {busy?<><RefreshCw className="wt-spin" size={15}/> Cleaning database…</>:<><Trash2 size={15}/> Permanently clean database</>}
+          </button>
+          <small>The preview token expires after 15 minutes. If the database changes, you must refresh and review a new preview.</small>
+        </section>
+      </>:<section className="wt-panel wt-admin-cleanup-panel"><p>The cleanup preview is unavailable. Refresh to try again.</p></section>
+    }
   </div>;
 }
