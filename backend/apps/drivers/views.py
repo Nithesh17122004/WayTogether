@@ -40,11 +40,6 @@ class DriverProfileView(APIView):
         return Response(data)
 
     def post(self, request):
-        if "profile_photo" in request.data and not settings.PRIVATE_MEDIA_STORAGE_READY:
-            return Response(
-                {"detail": "Driver photo upload is disabled until private persistent file storage is configured."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
         profile = self.get_profile(request)
         serializer = DriverProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
