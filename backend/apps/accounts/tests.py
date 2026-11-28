@@ -175,6 +175,35 @@ class RegistrationAndVerificationTests(APITestCase):
         response = self.client.get("/api/v1/auth/me/")
         self.assertEqual(response.status_code, 401)
 
+    def test_user_can_update_name_and_phone_from_profile_page(self):
+        user = User.objects.create_user(
+            email="profile-edit@example.com",
+            phone="+919876543210",
+            password="A-Strong-Unique-Password-928!",
+            first_name="Old",
+            last_name="Name",
+            is_email_verified=True,
+        )
+        self.client.force_authenticate(user)
+        response = self.client.patch(
+            "/api/v1/auth/me/",
+            {
+                "first_name": "New",
+                "last_name": "Profile",
+                "phone": "+919876543211",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["first_name"], "New")
+        self.assertEqual(response.data["last_name"], "Profile")
+        self.assertEqual(response.data["display_name"], "New Profile")
+        self.assertEqual(response.data["phone"], "+919876543211")
+        user.refresh_from_db()
+        self.assertEqual(user.first_name, "New")
+        self.assertEqual(user.last_name, "Profile")
+        self.assertEqual(user.phone, "+919876543211")
+
     def test_incorrect_code_increments_attempts(self):
         user = User.objects.create_user(
             email="kamaresh@example.com",
