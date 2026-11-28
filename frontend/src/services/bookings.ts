@@ -23,6 +23,9 @@ export type BookingRecord = {
   updated_at: string;
   responded_at: string | null;
   cancelled_at: string | null;
+  contact_details_released?: boolean;
+  driver_phone?: string | null;
+  passenger_phone?: string | null;
 };
 
 export async function createBooking(payload: {
