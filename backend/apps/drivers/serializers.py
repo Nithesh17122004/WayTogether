@@ -14,7 +14,6 @@ class DriverProfileSerializer(serializers.ModelSerializer):
         source="get_verification_status_display",
         read_only=True,
     )
-    profile_photo = serializers.FileField(write_only=True, required=False, validators=[validate_driver_profile_photo])
     contact_phone = serializers.CharField(
         source="user.phone",
         required=False,
@@ -27,7 +26,7 @@ class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverProfile
         fields = (
-            "id", "bio", "city", "state", "contact_phone", "profile_photo", "driver_photo_url", "verification_status",
+            "id", "bio", "city", "state", "contact_phone", "driver_photo_url", "verification_status",
             "verification_status_display", "submitted_at", "created_at", "updated_at",
         )
         read_only_fields = (
