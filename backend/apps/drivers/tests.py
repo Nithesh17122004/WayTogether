@@ -246,6 +246,28 @@ class DriverVerificationApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_existing_driver_without_mobile_can_open_profile_and_add_one(self):
+        driver = User.objects.create_user(
+            email="legacy-driver@example.com",
+            phone=None,
+            password="A-Strong-Unique-Password-928!",
+            role=User.Role.DRIVER,
+            is_email_verified=True,
+        )
+        self.client.force_authenticate(driver)
+        profile = self.client.get("/api/v1/drivers/profile/")
+        self.assertEqual(profile.status_code, status.HTTP_200_OK)
+        self.assertFalse(profile.data["contact_phone"])
+
+        updated = self.client.patch(
+            "/api/v1/drivers/profile/",
+            {"contact_phone": "+919876543260"},
+            format="json",
+        )
+        self.assertEqual(updated.status_code, status.HTTP_200_OK)
+        driver.refresh_from_db()
+        self.assertEqual(driver.phone, "+919876543260")
+
     def test_unverified_driver_cannot_upload_documents(self):
         driver = User.objects.create_user(
             email="unverified@example.com",
