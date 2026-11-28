@@ -70,6 +70,17 @@ class Command(BaseCommand):
         admin_ids = set(admins.values_list("id", flat=True))
         keep_user_ids = admin_ids | required_driver_ids
 
+        VerificationDocument = apps.get_model("drivers", "VerificationDocument")
+        keep_document_ids = set(
+            VerificationDocument.objects.filter(
+                owner_id__in=required_driver_ids,
+                is_current=True,
+                review_status="approved",
+            ).filter(
+                Q(vehicle__isnull=True) | Q(vehicle_id__in=vehicle_ids)
+            ).values_list("id", flat=True)
+        )
+
         summary = [
             ("Administrator accounts to preserve", len(admin_ids)),
             ("Future published journeys to preserve", len(journey_ids)),
@@ -90,8 +101,8 @@ class Command(BaseCommand):
              ))),
             ("Passenger verification submissions to remove",
              self._count("accounts", "PassengerVerification")),
-            ("Driver / vehicle verification documents to remove",
-             self._count("drivers", "VerificationDocument")),
+            ("Non-current / unapproved / unrelated driver documents to remove",
+             VerificationDocument.objects.exclude(pk__in=keep_document_ids).count()),
             ("Non-retained driver profiles to remove",
              DriverProfile.objects.exclude(user_id__in=required_driver_ids).count()),
             ("Vehicles not used by retained journeys to remove",
@@ -135,8 +146,11 @@ class Command(BaseCommand):
                 PassengerVerification.objects.all(),
                 ("masked_aadhaar_document", "passenger_photo"),
             )
+            documents_to_remove = VerificationDocument.objects.exclude(
+                pk__in=keep_document_ids
+            )
             document_files = self._schedule_file_deletion(
-                VerificationDocument.objects.all(), ("file",)
+                documents_to_remove, ("file",)
             )
             profile_files = self._schedule_file_deletion(
                 DriverProfile.objects.exclude(user_id__in=required_driver_ids),
@@ -145,7 +159,7 @@ class Command(BaseCommand):
 
             PassengerVerification.objects.all().delete()
             VerificationCode.objects.all().delete()
-            VerificationDocument.objects.all().delete()
+            documents_to_remove.delete()
 
             Journey.objects.exclude(pk__in=journey_ids).delete()
             Vehicle.objects.exclude(pk__in=vehicle_ids).delete()
