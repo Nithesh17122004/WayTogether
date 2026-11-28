@@ -291,8 +291,14 @@ class JourneyPublishView(APIView):
 
             if profile.verification_status != DriverProfile.VerificationStatus.APPROVED:
                 return Response({"detail": "Your driver verification must be approved before publishing."}, status=403)
-            if not profile.profile_photo:
-                return Response({"detail": "Upload a driver profile photo before publishing a journey."}, status=400)
+            approved_driver_photo = VerificationDocument.objects.filter(
+                owner=request.user,
+                document_type=VerificationDocument.DocumentType.DRIVER_PHOTO,
+                review_status=VerificationDocument.ReviewStatus.APPROVED,
+                is_current=True,
+            ).exists()
+            if not approved_driver_photo:
+                return Response({"detail": "Upload your driver face photo and wait for administrator approval before publishing."}, status=403)
             if not request.user.phone:
                 return Response(
                     {"detail": "Add a driver contact phone number before publishing. Phone OTP verification is not required."},
