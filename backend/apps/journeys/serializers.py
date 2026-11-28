@@ -36,6 +36,13 @@ class JourneySerializer(serializers.ModelSerializer):
     estimated_contribution_per_passenger = serializers.DecimalField(
         max_digits=10, decimal_places=2, read_only=True
     )
+    platform_fee_per_passenger = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
+    passenger_total_per_passenger = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
+    platform_fee_percent = serializers.SerializerMethodField()
     origin_match_distance_km = serializers.SerializerMethodField()
     destination_match_distance_km = serializers.SerializerMethodField()
     matched_origin_name = serializers.SerializerMethodField()
@@ -50,6 +57,8 @@ class JourneySerializer(serializers.ModelSerializer):
             "origin_name", "origin_latitude", "origin_longitude",
             "destination_name", "destination_latitude", "destination_longitude",
             "travel_date", "departure_time", "seats_offered",
+            "driver_amount_per_passenger", "platform_fee_percent",
+            "platform_fee_per_passenger", "passenger_total_per_passenger",
             "fuel_expense", "toll_expense", "parking_expense", "other_expense",
             "estimated_total_expenses", "estimated_contribution_per_passenger",
             "expense_note", "description", "route_distance_km",
@@ -62,9 +71,13 @@ class JourneySerializer(serializers.ModelSerializer):
         read_only_fields = (
             "id", "driver_name", "driver_photo_url", "driver_verification_status", "vehicle_details",
             "estimated_total_expenses", "estimated_contribution_per_passenger",
+            "platform_fee_per_passenger", "passenger_total_per_passenger", "platform_fee_percent",
             "status", "published_at", "created_at", "updated_at",
             "origin_match_distance_km", "destination_match_distance_km",
         )
+
+    def get_platform_fee_percent(self, obj):
+        return "30.00"
 
     def get_driver_verification_status(self, obj):
         profile = getattr(obj.driver, "driver_profile", None)
@@ -144,6 +157,10 @@ class JourneySerializer(serializers.ModelSerializer):
             value = attrs.get(field, getattr(instance, field, None))
             if value is not None and not Decimal("-180") <= value <= Decimal("180"):
                 raise serializers.ValidationError({field: "Longitude must be between -180 and 180."})
+
+        driver_amount = attrs.get("driver_amount_per_passenger", getattr(instance, "driver_amount_per_passenger", Decimal("0.00")))
+        if driver_amount < Decimal("0.00"):
+            raise serializers.ValidationError({"driver_amount_per_passenger": "Driver amount cannot be negative."})
 
         for field in ("fuel_expense", "toll_expense", "parking_expense", "other_expense"):
             value = attrs.get(field, getattr(instance, field, Decimal("0.00")))
