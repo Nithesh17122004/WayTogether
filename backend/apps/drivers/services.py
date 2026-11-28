@@ -3,6 +3,11 @@ from django.utils import timezone
 from .models import DriverProfile, Vehicle, VerificationDocument
 
 
+REQUIRED_DRIVER_DOCUMENTS = (
+    VerificationDocument.DocumentType.DRIVER_LICENSE,
+    VerificationDocument.DocumentType.DRIVER_PHOTO,
+)
+
 REQUIRED_VEHICLE_DOCUMENTS = (
     VerificationDocument.DocumentType.VEHICLE_REGISTRATION,
     VerificationDocument.DocumentType.INSURANCE,
@@ -61,21 +66,30 @@ def recompute_driver_status(owner):
     if not profile or profile.verification_status == DriverProfile.VerificationStatus.SUSPENDED:
         return profile.verification_status if profile else None
 
-    licence = current_document(owner, VerificationDocument.DocumentType.DRIVER_LICENSE)
+    driver_documents = {
+        document_type: current_document(owner, document_type)
+        for document_type in REQUIRED_DRIVER_DOCUMENTS
+    }
     approved_vehicle = Vehicle.objects.filter(
         owner=owner,
         verification_status=Vehicle.VerificationStatus.APPROVED,
     ).exists()
 
-    if licence and (
-        licence.review_status == VerificationDocument.ReviewStatus.REJECTED
-        or licence.is_expired
+    if any(
+        document and (
+            document.review_status == VerificationDocument.ReviewStatus.REJECTED
+            or document.is_expired
+        )
+        for document in driver_documents.values()
     ):
         profile.verification_status = DriverProfile.VerificationStatus.NEEDS_RESUBMISSION
     elif (
-        licence
-        and licence.review_status == VerificationDocument.ReviewStatus.APPROVED
-        and not licence.is_expired
+        all(
+            document
+            and document.review_status == VerificationDocument.ReviewStatus.APPROVED
+            and not document.is_expired
+            for document in driver_documents.values()
+        )
         and approved_vehicle
     ):
         profile.verification_status = DriverProfile.VerificationStatus.APPROVED
@@ -104,12 +118,17 @@ def refresh_verification_status(owner, vehicle=None):
 def submit_vehicle_for_review(owner, vehicle):
     profile, _ = DriverProfile.objects.get_or_create(user=owner)
 
-    licence = current_document(owner, VerificationDocument.DocumentType.DRIVER_LICENSE)
     missing = []
-    if not licence:
-        missing.append("Driving licence")
-    elif licence.is_expired:
-        missing.append("A current driving licence")
+    driver_labels = {
+        VerificationDocument.DocumentType.DRIVER_LICENSE: "Driving licence",
+        VerificationDocument.DocumentType.DRIVER_PHOTO: "Driver face photo",
+    }
+    for document_type, label in driver_labels.items():
+        document = current_document(owner, document_type)
+        if not document:
+            missing.append(label)
+        elif document.is_expired:
+            missing.append(f"A current {label.lower()}")
 
     vehicle_documents = {
         document_type: current_document(owner, document_type, vehicle)
