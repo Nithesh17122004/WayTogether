@@ -29,10 +29,18 @@ class RegistrationAndVerificationTests(APITestCase):
         payload.update(overrides)
         return payload
 
-    def test_register_sends_only_email_code_and_phone_is_optional(self):
-        response = self.client.post(
+    def test_register_requires_mobile_number_and_sends_only_email_code(self):
+        missing_phone = self.client.post(
             "/api/v1/auth/register/",
             self.registration_payload(phone=None),
+            format="json",
+        )
+        self.assertEqual(missing_phone.status_code, 400)
+        self.assertFalse(User.objects.filter(email="kamaresh@example.com").exists())
+
+        response = self.client.post(
+            "/api/v1/auth/register/",
+            self.registration_payload(),
             format="json",
         )
 
@@ -41,14 +49,14 @@ class RegistrationAndVerificationTests(APITestCase):
         self.assertIn("refresh", response.data)
         self.assertTrue(response.data["email_verification_required"])
         user = User.objects.get(email="kamaresh@example.com")
-        self.assertIsNone(user.phone)
+        self.assertEqual(user.phone, "+919876543210")
         self.assertFalse(user.is_email_verified)
         self.assertFalse(user.is_phone_verified)
         self.assertEqual(response.data["verification"]["email"], "sent")
         self.assertNotIn("phone", response.data["verification"])
         self.assertEqual(len(mail.outbox), 1)
 
-        email_match = re.search(r"code is (\d{6})", mail.outbox[0].body)
+        email_match = re.search(r"code is (\\d{6})", mail.outbox[0].body)
         self.assertIsNotNone(email_match)
         email_result = self.client.post(
             "/api/v1/auth/verification/confirm/",
