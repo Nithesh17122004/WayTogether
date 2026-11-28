@@ -55,7 +55,7 @@ function JourneyResultCard({journey}:{journey:JourneyRecord}) {
     {usesIntermediateSegment&&<div className="wt-live-stops">Matches an intermediate segment of the driver's planned route</div>}
     {journey.stops.length>0&&<div className="wt-live-stops"><MapPin size={12}/> Via {journey.stops.map(stop=>stop.location_name).join(" · ")}</div>}
     <div className="wt-live-driver"><DriverAvatar journey={journey}/><span><b>{journey.driver_name}</b><small><ShieldCheck size={12}/> Approved driver · {journey.vehicle_details.vehicle_type} · {journey.vehicle_details.passenger_seats} seats</small></span><span className="wt-live-seats"><Users size={13}/>{journey.available_seats} seats available</span></div>
-    <div className="wt-live-card-bottom"><span><small>Estimated expense share per passenger*</small><b>{money(journey.estimated_contribution_per_passenger)}</b></span><Link to={"/journeys/"+journey.id} className="wt-btn wt-btn-primary">View journey <ArrowRight size={15}/></Link></div>
+    <div className="wt-live-card-bottom"><span><small>Passenger pays per seat · includes 30% platform fee</small><b>{money(journey.passenger_total_per_passenger)}</b></span><Link to={"/journeys/"+journey.id} className="wt-btn wt-btn-primary">View journey <ArrowRight size={15}/></Link></div>
   </article>;
 }
 
@@ -170,7 +170,7 @@ export function JourneyPublishContent() {
   const [date,setDate] = useState(todayLocal());
   const [time,setTime] = useState("08:00");
   const [seats,setSeats] = useState("1");
-  const [expenses,setExpenses] = useState({fuel:"",toll:"",parking:"",other:""});
+  const [driverAmountPerPassenger,setDriverAmountPerPassenger] = useState("");
   const [expenseNote,setExpenseNote] = useState("");
   const [description,setDescription] = useState("");
   const [attested,setAttested] = useState(false);
@@ -190,8 +190,9 @@ export function JourneyPublishContent() {
   },[]);
 
   const chosenVehicle = vehicles.find(vehicle=>String(vehicle.id)===vehicleId);
-  const expenseTotal = useMemo(()=>Object.values(expenses).reduce((sum,value)=>sum+Number(value||0),0),[expenses]);
-  const expenseShare = expenseTotal/(Number(seats)+1);
+  const driverAmount = Number(driverAmountPerPassenger || 0);
+  const platformFee = Math.round((driverAmount * 0.30 + Number.EPSILON) * 100) / 100;
+  const passengerTotal = driverAmount + platformFee;
   const availableSeats = chosenVehicle?.passenger_seats ?? 0;
 
   const buildRoute = async () => {
@@ -221,7 +222,7 @@ export function JourneyPublishContent() {
     if(!vehicleId||!chosenVehicle){setError("Register a vehicle before creating a journey.");return;}
     if(Number(seats)<1||Number(seats)>Math.min(8,availableSeats)){setError("Passenger seats cannot exceed the approved vehicle's registered capacity.");return;}
     if(!attested){setError("Confirm that you independently planned this journey and are sharing eligible expenses only.");return;}
-    if(expenseTotal<=0){setError("Enter a reasonable estimate of eligible journey expenses.");return;}
+    if(!Number.isFinite(driverAmount)||driverAmount<=0){setError("Enter a positive driver amount per passenger.");return;}
     if(stops.some(stop=>!stop.display_name)){setError("Choose a location for each intermediate stop or remove the empty stop.");return;}
 
     setBusy(true);
@@ -231,8 +232,9 @@ export function JourneyPublishContent() {
         origin_name:origin.display_name,origin_latitude:origin.latitude,origin_longitude:origin.longitude,
         destination_name:destination.display_name,destination_latitude:destination.latitude,destination_longitude:destination.longitude,
         travel_date:date,departure_time:time,seats_offered:Number(seats),
-        fuel_expense:expenses.fuel||"0.00",toll_expense:expenses.toll||"0.00",
-        parking_expense:expenses.parking||"0.00",other_expense:expenses.other||"0.00",
+        driver_amount_per_passenger:driverAmountPerPassenger,
+        fuel_expense:"0.00",toll_expense:"0.00",
+        parking_expense:"0.00",other_expense:"0.00",
         expense_note:expenseNote,description,
         route_distance_km:route?.distance_km??null,
         route_duration_minutes:route?.duration_minutes??null,
@@ -289,16 +291,15 @@ export function JourneyPublishContent() {
         </section>
 
         <section className="wt-panel wt-publish-section">
-          <div className="wt-publish-section-title"><span>03</span><div><h2>Eligible journey expenses</h2><p>Enter estimated expenses for the whole journey, not a commercial fare.</p></div></div>
-          <div className="wt-publish-grid wt-expense-grid">
-            <label className="wt-field"><span>Fuel estimate (₹)</span><input type="number" min="0" step="0.01" value={expenses.fuel} onChange={e=>setExpenses(v=>({...v,fuel:e.target.value}))} placeholder="0.00"/></label>
-            <label className="wt-field"><span>Tolls (₹)</span><input type="number" min="0" step="0.01" value={expenses.toll} onChange={e=>setExpenses(v=>({...v,toll:e.target.value}))} placeholder="0.00"/></label>
-            <label className="wt-field"><span>Parking (₹)</span><input type="number" min="0" step="0.01" value={expenses.parking} onChange={e=>setExpenses(v=>({...v,parking:e.target.value}))} placeholder="0.00"/></label>
-            <label className="wt-field"><span>Other eligible costs (₹)</span><input type="number" min="0" step="0.01" value={expenses.other} onChange={e=>setExpenses(v=>({...v,other:e.target.value}))} placeholder="0.00"/></label>
+          <div className="wt-publish-section-title"><span>03</span><div><h2>Passenger pricing</h2><p>Set the amount you receive for each confirmed passenger seat. WayTogether adds its 30% platform fee separately.</p></div></div>
+          <label className="wt-field"><span>Driver amount per passenger (₹)</span><input type="number" min="1" step="0.01" value={driverAmountPerPassenger} onChange={e=>setDriverAmountPerPassenger(e.target.value)} placeholder="350.00" required/><small className="wt-field-hint">This is the amount allocated to the driver for one passenger seat, before the platform fee.</small></label>
+          <label className="wt-field"><span>Pricing note (optional)</span><input value={expenseNote} onChange={e=>setExpenseNote(e.target.value)} maxLength={500} placeholder="Add a short note about this journey's cost"/></label>
+          <div className="wt-expense-estimate wt-price-breakdown">
+            <div><small>Driver receives per passenger</small><b>{money(driverAmount)}</b></div>
+            <div><small>WayTogether platform fee (30%)</small><b>{money(platformFee)}</b></div>
+            <div className="wt-price-total"><small>Passenger pays per seat</small><b>{money(passengerTotal)}</b></div>
           </div>
-          <label className="wt-field"><span>Expense notes (optional)</span><input value={expenseNote} onChange={e=>setExpenseNote(e.target.value)} maxLength={500} placeholder="For example: fuel estimate and tolls for the planned journey"/></label>
-          <div className="wt-expense-estimate"><div><small>Total estimated expenses</small><b>{money(expenseTotal)}</b></div><div><small>Estimated share per passenger*</small><b>{money(expenseShare)}</b></div></div>
-          <p className="wt-market-footnote">*Preview assumes every offered passenger seat is occupied and the driver shares the total eligible expenses equally. Final allocation will depend on actual confirmed passengers and the approved policy. No platform commission or driver profit is calculated here.</p>
+          <p className="wt-market-footnote">The 30% fee is calculated on the driver's amount and shown separately before booking. The passenger total stays the same for each seat as confirmed bookings are added. Payments and driver payouts remain in Test Mode / disabled until launch approvals are complete.</p>
         </section>
 
         <section className="wt-panel wt-publish-section">
@@ -310,7 +311,7 @@ export function JourneyPublishContent() {
       <aside className="wt-panel wt-publish-summary"><span className="wt-eyebrow">PUBLISH CHECKLIST</span><h3>Ready to share?</h3><ul>
         <li className={origin&&destination?"done":""}><Check size={14}/> Origin and destination selected</li>
         <li className={chosenVehicle?.verification_status==="approved"?"done":""}><Check size={14}/> Vehicle approved</li>
-        <li className={expenseTotal>0?"done":""}><Check size={14}/> Expense estimate entered</li>
+        <li className={driverAmount>0?"done":""}><Check size={14}/> Driver amount set</li>
         <li className={attested?"done":""}><Check size={14}/> Independent journey confirmed</li>
       </ul>
       <div className="wt-publish-summary-note"><ShieldCheck size={17}/><span>Only approved drivers and approved vehicles can publish. A saved draft will remain private until it passes the verification checks.</span></div>
@@ -384,9 +385,10 @@ export function JourneyDetailContent() {
       </section>
       <aside className="wt-panel wt-live-booking-panel">
         <span className="wt-eyebrow">ESTIMATED EXPENSE SHARE</span>
-        <strong>{money(journey.estimated_contribution_per_passenger)}</strong>
-        <small>Estimated per passenger if all offered seats are occupied</small>
-        <div className="wt-summary-line"><span>Total eligible expenses (estimate)</span><b>{money(journey.estimated_total_expenses)}</b></div>
+        <strong>{money(journey.passenger_total_per_passenger)}</strong>
+        <small>Passenger pays per seat · includes 30% platform fee</small>
+        <div className="wt-summary-line"><span>Driver amount per seat</span><b>{money(journey.driver_amount_per_passenger)}</b></div>
+        <div className="wt-summary-line"><span>WayTogether fee (30%)</span><b>{money(journey.platform_fee_per_passenger)}</b></div>
         <div className="wt-summary-line"><span>Passenger seats confirmed</span><b>{journey.confirmed_seats}</b></div>
         <div className="wt-summary-line"><span>Passenger seats available</span><b>{journey.available_seats}</b></div>
         <div className="wt-summary-line"><span>Estimated distance</span><b>{journey.route_distance_km?journey.route_distance_km+" km":"Not available"}</b></div>
@@ -402,7 +404,7 @@ export function JourneyDetailContent() {
           <p className="wt-booking-request-note">Your request is pending until the driver approves it. Seats are not reserved and no money is collected at this point.</p>
           <Link to="/dashboard/passenger/bookings" className="wt-text-link">View my bookings <ArrowRight size={13}/></Link>
         </form>:<div className="wt-market-notice info">All passenger seats are currently confirmed. Check again later for availability.</div>}
-        <p className="wt-market-footnote">*The displayed full-occupancy estimate is provisional. Confirmed booking contributions are recalculated as seat occupancy changes. No payment is taken in Phase 6.</p>
+        <p className="wt-market-footnote">The passenger total is the driver's published amount plus the separately disclosed 30% platform fee. It is charged per seat, so the amount does not change when additional passengers book. Payments and driver payouts remain disabled outside Test Mode.</p>
       </aside>
     </div>
   </div></main>;
