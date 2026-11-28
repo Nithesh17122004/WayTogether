@@ -876,7 +876,7 @@ function DriverDashboard() {
       <Link to="/publish" className="wt-btn wt-btn-primary">Share a journey <Plus size={15}/></Link>
     </div>
     <div className="wt-dash-banner">
-      <div><span><ShieldCheck size={18}/> DRIVER PRINCIPLE</span><b>Share the journey you already planned.</b><p>WayTogether is designed for eligible expense sharing, not profit-seeking passenger transport.</p></div>
+      <div><span><ShieldCheck size={18}/> TRANSPARENT PRICING</span><b>Share the journey you already planned.</b><p>Set your amount per passenger. The 30% platform fee and final passenger total are displayed separately.</p></div>
       <Link to="/dashboard/driver/bookings" className="wt-btn wt-btn-primary">Booking requests <Users size={15}/></Link>
     </div>
     <div className="wt-dash-metrics">
