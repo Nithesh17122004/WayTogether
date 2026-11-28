@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 
 from apps.bookings.models import Booking
 from apps.drivers.models import DriverProfile, Vehicle, VerificationDocument
-from apps.finance.models import ExpenseSettlement, PassengerContribution, RazorpayPayment
+from apps.finance.models import ExpenseSettlement, PassengerContribution, RazorpayPayment, SandboxPayment
 from apps.journeys.models import Journey
 from apps.trust.models import SafetyReport
 
@@ -59,6 +59,7 @@ class AdminOverviewView(APIView):
         finalized_settlements = ExpenseSettlement.objects.filter(is_finalized=True)
         final_contributions = PassengerContribution.objects.filter(settlement__is_finalized=True)
         razorpay_statuses = _choice_counts(RazorpayPayment.objects.all(), "status")
+        legacy_sandbox_statuses = _choice_counts(SandboxPayment.objects.all(), "status")
         return Response({
             "generated_at": now,
             "users": {
@@ -111,6 +112,8 @@ class AdminOverviewView(APIView):
                     final_contributions.aggregate(total=Sum("total_amount"))["total"] or Decimal("0.00")
                 ),
                 "passenger_contribution_records": final_contributions.count(),
+                "sandbox_payment_attempts": sum(legacy_sandbox_statuses.values()),
+                "sandbox_payments_by_status": legacy_sandbox_statuses,
                 "razorpay_test_payment_attempts": sum(razorpay_statuses.values()),
                 "razorpay_test_payments_by_status": razorpay_statuses,
                 "notice": "Expense allocations are cost-sharing records. Razorpay transactions are in Test Mode only; no real money is collected or paid out to drivers.",
