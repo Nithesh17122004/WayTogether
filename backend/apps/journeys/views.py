@@ -17,7 +17,7 @@ from apps.trust.services import notify
 from apps.drivers.services import recompute_driver_status, recompute_vehicle_status
 from .geo import haversine_km
 from .models import Journey
-from .permissions import IsVerifiedDriver
+from .permissions import IsDriverAccount, IsVerifiedDriver
 from .serializers import JourneySerializer
 from .services import MapsProviderError, MapsRateLimitError, get_route_preview, search_locations
 
@@ -130,7 +130,9 @@ class RoutePreviewView(APIView):
 class JourneyListCreateView(APIView):
     def get_permissions(self):
         if self.request.method == "POST":
-            return [IsAuthenticated(), IsVerifiedDriver()]
+            # Drivers can prepare drafts while KYC is pending; publishing is
+            # separately protected by IsVerifiedDriver.
+            return [IsAuthenticated(), IsDriverAccount()]
         return [AllowAny()]
 
     def get(self, request):
@@ -205,7 +207,8 @@ class JourneyListCreateView(APIView):
 
 
 class MyJourneyListView(generics.ListAPIView):
-    permission_classes = [IsAuthenticated, IsVerifiedDriver]
+    # A pending driver must still be able to manage and see their saved drafts.
+    permission_classes = [IsAuthenticated, IsDriverAccount]
     serializer_class = JourneySerializer
 
     def get_queryset(self):
