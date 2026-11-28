@@ -13,7 +13,7 @@ from apps.bookings.models import Booking
 from apps.drivers.models import DriverProfile, Vehicle
 from apps.journeys.models import Journey
 
-from .models import ExpenseSettlement, PassengerContribution, SandboxPayment, SandboxRefund
+from .models import ExpenseSettlement, PassengerContribution, RazorpayPayment, SandboxPayment, SandboxRefund
 
 User = get_user_model()
 
@@ -346,3 +346,40 @@ class FinanceApiTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_contact_numbers_are_hidden_until_booking_payment_is_captured(self):
+        booking = self.create_booking(self.passenger_one)
+        self.client.force_authenticate(self.passenger_one)
+
+        unpaid = self.client.get(f"/api/v1/bookings/{booking.pk}/")
+        self.assertEqual(unpaid.status_code, status.HTTP_200_OK)
+        self.assertFalse(unpaid.data["contact_details_released"])
+        self.assertIsNone(unpaid.data["driver_phone"])
+        self.assertIsNone(unpaid.data["passenger_phone"])
+
+        self.submit_settlement(actual_fuel_expense="600.00")
+        contribution = PassengerContribution.objects.get(booking=booking)
+        RazorpayPayment.objects.create(
+            contribution=contribution,
+            order_id="order_contact_release_test",
+            payment_id="pay_contact_release_test",
+            status=RazorpayPayment.Status.CAPTURED,
+            amount=contribution.total_amount,
+            currency=contribution.currency,
+            test_mode=True,
+            completed_at=timezone.now(),
+        )
+
+        released = self.client.get(f"/api/v1/bookings/{booking.pk}/")
+        self.assertEqual(released.status_code, status.HTTP_200_OK)
+        self.assertTrue(released.data["contact_details_released"])
+        self.assertEqual(released.data["driver_phone"], self.driver.phone)
+        self.assertEqual(released.data["passenger_phone"], self.passenger_one.phone)
+
+        other_passenger = self.create_user(
+            "other-contact@example.com", "+919876540009", User.Role.PASSENGER
+        )
+        self.client.force_authenticate(other_passenger)
+        hidden_from_other_user = self.client.get(f"/api/v1/bookings/{booking.pk}/")
+        self.assertEqual(hidden_from_other_user.status_code, status.HTTP_404_NOT_FOUND)
+
