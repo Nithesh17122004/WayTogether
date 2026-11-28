@@ -11,6 +11,7 @@ from .models import DriverProfile, Vehicle, VerificationDocument
 
 User = get_user_model()
 PDF_BYTES = b"%PDF-1.4\nWayTogether test document\n%%EOF"
+JPEG_BYTES = b"\xff\xd8\xffWayTogether test photo"
 
 
 def make_pdf(name="test-document.pdf", content=PDF_BYTES, content_type="application/pdf"):
