@@ -18,6 +18,7 @@ from .models import PassengerVerification, VerificationCode
 from .serializers import (
     RegisterSerializer,
     UserPublicSerializer,
+    CurrentUserPhoneSerializer,
     WayTogetherTokenSerializer,
 )
 from .services import issue_verification_code, verify_code
@@ -147,6 +148,16 @@ class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        return Response(UserPublicSerializer(request.user).data)
+
+    def patch(self, request):
+        serializer = CurrentUserPhoneSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        request.user.phone = serializer.validated_data["phone"]
+        request.user.save(update_fields=["phone"])
         return Response(UserPublicSerializer(request.user).data)
 
 
