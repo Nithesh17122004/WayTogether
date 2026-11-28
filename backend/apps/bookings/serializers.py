@@ -19,6 +19,11 @@ class BookingSerializer(serializers.ModelSerializer):
     driver_name = serializers.CharField(source="journey.driver.display_name", read_only=True)
     passenger_name = serializers.CharField(source="passenger.display_name", read_only=True)
     vehicle_name = serializers.SerializerMethodField()
+    driver_amount_per_passenger = serializers.DecimalField(source="journey.driver_amount_per_passenger", max_digits=9, decimal_places=2, read_only=True)
+    platform_fee_per_passenger = serializers.DecimalField(source="journey.platform_fee_per_passenger", max_digits=9, decimal_places=2, read_only=True)
+    passenger_total_per_passenger = serializers.DecimalField(source="journey.passenger_total_per_passenger", max_digits=9, decimal_places=2, read_only=True)
+    driver_amount_total = serializers.SerializerMethodField()
+    platform_fee_total = serializers.SerializerMethodField()
     contact_details_released = serializers.SerializerMethodField()
     driver_phone = serializers.SerializerMethodField()
     passenger_phone = serializers.SerializerMethodField()
@@ -29,12 +34,20 @@ class BookingSerializer(serializers.ModelSerializer):
             "id", "journey_id", "journey_origin", "journey_destination",
             "travel_date", "departure_time", "journey_status", "driver_name", "passenger_name",
             "vehicle_name", "seats_requested", "request_message", "driver_response",
+            "driver_amount_per_passenger", "platform_fee_per_passenger",
+            "passenger_total_per_passenger", "driver_amount_total", "platform_fee_total",
             "contact_details_released", "driver_phone", "passenger_phone",
             "status", "estimated_contribution_per_passenger",
             "estimated_contribution_total", "requested_at", "updated_at",
             "responded_at", "cancelled_at",
         )
         read_only_fields = fields
+
+    def get_driver_amount_total(self, obj):
+        return obj.journey.driver_amount_per_passenger * obj.seats_requested
+
+    def get_platform_fee_total(self, obj):
+        return obj.journey.platform_fee_per_passenger * obj.seats_requested
 
     def _contact_details_are_released(self, obj):
         if obj.status != Booking.Status.CONFIRMED:
