@@ -336,7 +336,7 @@ export function JourneyDetailContent() {
   const [requestMessage,setRequestMessage]=useState("");
 
   const loadJourney=()=>{
-    if(!id||!/^\\d+$/.test(id)){setError("Journey not found.");setLoading(false);return;}
+    if(!id||!/^[0-9]+$/.test(id)){setError("Journey not found.");setLoading(false);return;}
     setLoading(true);
     getJourney(Number(id)).then(data=>{
       setJourney(data);
