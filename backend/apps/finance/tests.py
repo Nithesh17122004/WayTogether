@@ -86,6 +86,7 @@ class FinanceApiTests(APITestCase):
             travel_date=timezone.localdate() + timedelta(days=days_offset),
             departure_time="08:00",
             seats_offered=4,
+            driver_amount_per_passenger=Decimal("350.00"),
             fuel_expense=Decimal("1000.00"),
             independently_planned=True,
             expenses_only=True,
@@ -131,13 +132,11 @@ class FinanceApiTests(APITestCase):
 
         share_one = PassengerContribution.objects.get(booking=booking_one)
         share_two = PassengerContribution.objects.get(booking=booking_two)
-        self.assertEqual(share_one.per_seat_amount, Decimal("300.00"))
-        self.assertEqual(share_one.total_amount, Decimal("600.00"))
-        self.assertEqual(share_two.total_amount, Decimal("300.00"))
-        self.assertEqual(
-            settlement.driver_share + share_one.total_amount + share_two.total_amount,
-            settlement.eligible_total,
-        )
+        self.assertEqual(share_one.per_seat_amount, Decimal("455.00"))
+        self.assertEqual(share_one.total_amount, Decimal("910.00"))
+        self.assertEqual(share_two.total_amount, Decimal("455.00"))
+        self.assertEqual(share_one.per_seat_amount - self.journey.driver_amount_per_passenger, Decimal("105.00"))
+        self.assertEqual(share_one.total_amount + share_two.total_amount, Decimal("1365.00"))
 
     def test_rounding_remainder_is_assigned_to_driver_and_ledger_reconciles(self):
         booking_one = self.create_booking(self.passenger_one)
@@ -150,11 +149,7 @@ class FinanceApiTests(APITestCase):
             booking__in=(booking_one, booking_two)
         ))
         self.assertEqual(settlement.driver_share, Decimal("333.35"))
-        self.assertEqual(sum(x.total_amount for x in shares), Decimal("666.66"))
-        self.assertEqual(
-            settlement.driver_share + sum(x.total_amount for x in shares),
-            Decimal("1000.01"),
-        )
+        self.assertEqual(sum(x.total_amount for x in shares), Decimal("910.00"))
 
     def test_driver_share_is_full_amount_when_no_passenger_seats_confirmed(self):
         response = self.submit_settlement(actual_fuel_expense="875.50")
@@ -226,7 +221,7 @@ class FinanceApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["booking_id"], booking_one.pk)
-        self.assertEqual(response.data[0]["total_amount"], "300.00")
+        self.assertEqual(response.data[0]["total_amount"], "455.00")
 
     @override_settings(FINANCE_SANDBOX_ENABLED=True)
     def test_passenger_can_create_and_complete_a_sandbox_payment(self):
@@ -330,7 +325,7 @@ class FinanceApiTests(APITestCase):
             format="json",
         )
         self.assertEqual(refunded.status_code, status.HTTP_200_OK)
-        self.assertEqual(refunded.data["refund"]["amount"], "300.00")
+        self.assertEqual(refunded.data["refund"]["amount"], "455.00")
         self.assertEqual(SandboxPayment.objects.get(pk=payment_id).status, SandboxPayment.Status.REFUNDED)
         self.assertEqual(SandboxRefund.objects.filter(payment_id=payment_id).count(), 1)
 
