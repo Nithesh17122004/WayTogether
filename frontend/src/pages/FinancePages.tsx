@@ -104,7 +104,7 @@ export function DriverFinanceContent() {
           </form>:<FinanceNotice text="No financial settlement is available for this journey." kind="info"/>}
         </article>;
       })}</div>}
-    <p className="wt-market-footnote">Final expense records are declarations by the journey driver, not verified receipts or a legal determination of eligible expenses. The payment simulator below is not available to drivers.</p>
+    <p className="wt-market-footnote">Final expense records are declarations by the journey driver, not verified receipts or a legal determination of eligible expenses. Passenger checkout uses Razorpay Test Mode only. No real funds move, and driver payouts are not enabled.</p>
   </div>;
 }
 
