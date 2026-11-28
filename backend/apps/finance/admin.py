@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ExpenseSettlement, PassengerContribution, SandboxPayment, SandboxRefund
+from .models import ExpenseSettlement, PassengerContribution, RazorpayPayment, SandboxPayment, SandboxRefund
 
 
 @admin.register(ExpenseSettlement)
@@ -56,6 +56,23 @@ class SandboxRefundAdmin(admin.ModelAdmin):
     list_filter = ("currency", "processed_at")
     search_fields = ("reference", "payment__reference", "processed_by__email")
     readonly_fields = tuple(field.name for field in SandboxRefund._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RazorpayPayment)
+class RazorpayPaymentAdmin(admin.ModelAdmin):
+    list_display = (
+        "id", "order_id", "payment_id", "contribution", "amount",
+        "currency", "status", "test_mode", "created_at",
+    )
+    list_filter = ("status", "test_mode", "currency", "created_at")
+    search_fields = ("order_id", "payment_id", "contribution__passenger__email")
+    readonly_fields = tuple(field.name for field in RazorpayPayment._meta.fields)
 
     def has_add_permission(self, request):
         return False
