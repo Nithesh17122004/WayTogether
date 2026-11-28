@@ -43,6 +43,7 @@ class DriverVerificationApiTests(APITestCase):
             model="City",
             manufacture_year=2022,
             colour="Blue",
+            vehicle_category=Vehicle.VehicleCategory.FOUR_WHEELER,
             vehicle_type=Vehicle.VehicleType.SEDAN,
             passenger_seats=3,
             private_use_attested=True,
@@ -87,6 +88,7 @@ class DriverVerificationApiTests(APITestCase):
                 "model": "City",
                 "manufacture_year": 2022,
                 "colour": "Blue",
+                "vehicle_category": "four_wheeler",
                 "vehicle_type": "sedan",
                 "passenger_seats": 3,
                 "private_use_attested": True,
@@ -95,6 +97,7 @@ class DriverVerificationApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["registration_number"], "TN01AB1234")
+        self.assertEqual(response.data["vehicle_category"], "four_wheeler")
         self.assertEqual(Vehicle.objects.get(pk=response.data["id"]).owner, driver)
 
     def test_vehicle_requires_private_use_attestation(self):
@@ -187,7 +190,7 @@ class DriverVerificationApiTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(len(response.data["missing_documents"]), 5)
+        self.assertEqual(len(response.data["missing_documents"]), 4)
 
     def test_documents_must_be_admin_approved_before_driver_is_approved(self):
         driver = self.create_driver()
@@ -203,7 +206,6 @@ class DriverVerificationApiTests(APITestCase):
             self.upload_document(self.client, "driver_photo"),
             self.upload_document(self.client, "vehicle_registration", vehicle),
             self.upload_document(self.client, "insurance", vehicle, date.today() + timedelta(days=365)),
-            self.upload_document(self.client, "vehicle_photo", vehicle),
         ]
         self.assertTrue(all(item.status_code == status.HTTP_201_CREATED for item in uploads))
 
@@ -229,6 +231,82 @@ class DriverVerificationApiTests(APITestCase):
         profile = DriverProfile.objects.get(user=driver)
         self.assertEqual(vehicle.verification_status, Vehicle.VerificationStatus.APPROVED)
         self.assertEqual(profile.verification_status, DriverProfile.VerificationStatus.APPROVED)
+
+        # Editing the vehicle invalidates the existing approvals for that vehicle.
+        self.client.force_authenticate(driver)
+        edited = self.client.patch(
+            f"/api/v1/drivers/vehicles/{vehicle.pk}/",
+            {"model": "Civic"},
+            format="json",
+        )
+        self.assertEqual(edited.status_code, status.HTTP_200_OK)
+        vehicle.refresh_from_db()
+        profile.refresh_from_db()
+        self.assertEqual(vehicle.verification_status, Vehicle.VerificationStatus.PENDING)
+        self.assertEqual(profile.verification_status, DriverProfile.VerificationStatus.PENDING)
+        self.assertTrue(VerificationDocument.objects.filter(
+            vehicle=vehicle,
+            is_current=True,
+            review_status=VerificationDocument.ReviewStatus.PENDING,
+        ).exists())
+
+    def test_two_wheeler_category_limits_passenger_capacity_to_one(self):
+        driver = self.create_driver()
+        self.client.force_authenticate(driver)
+        payload = {
+            "registration_number": "TN57AC1314",
+            "make": "Royal Enfield",
+            "model": "Classic 350",
+            "manufacture_year": 2018,
+            "vehicle_category": "two_wheeler",
+            "vehicle_type": "motorcycle",
+            "passenger_seats": 2,
+            "private_use_attested": True,
+        }
+        invalid = self.client.post("/api/v1/drivers/vehicles/", payload, format="json")
+        self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
+
+        payload["passenger_seats"] = 1
+        valid = self.client.post("/api/v1/drivers/vehicles/", payload, format="json")
+        self.assertEqual(valid.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(valid.data["vehicle_category"], "two_wheeler")
+        self.assertEqual(valid.data["vehicle_type"], "motorcycle")
+
+    def test_each_uploaded_driver_document_can_be_reviewed_independently(self):
+        driver = self.create_driver()
+        admin = User.objects.create_superuser(
+            email="partial-reviewer@example.com",
+            phone="+919876543296",
+            password="A-Strong-Unique-Password-928!",
+        )
+        self.client.force_authenticate(driver)
+        uploaded = self.upload_document(self.client, "driver_license")
+        self.assertEqual(uploaded.status_code, status.HTTP_201_CREATED)
+
+        profile = DriverProfile.objects.get(user=driver)
+        self.assertEqual(profile.verification_status, DriverProfile.VerificationStatus.PENDING)
+
+        self.client.force_authenticate(admin)
+        queue = self.client.get("/api/v1/drivers/admin/verification/queue/")
+        self.assertEqual(queue.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(queue.data), 1)
+        self.assertEqual(queue.data[0]["document_type"], "driver_license")
+
+        reviewed = self.client.post(
+            f"/api/v1/drivers/admin/verification/documents/{uploaded.data['id']}/review/",
+            {"decision": "approved"},
+            format="json",
+        )
+        self.assertEqual(reviewed.status_code, status.HTTP_200_OK)
+        document = VerificationDocument.objects.get(pk=uploaded.data["id"])
+        self.assertEqual(document.review_status, VerificationDocument.ReviewStatus.APPROVED)
+        profile.refresh_from_db()
+        self.assertEqual(profile.verification_status, DriverProfile.VerificationStatus.PENDING)
+        self.assertFalse(VerificationDocument.objects.filter(
+            owner=driver,
+            document_type=VerificationDocument.DocumentType.VEHICLE_REGISTRATION,
+            is_current=True,
+        ).exists())
 
     def test_document_rejection_requires_a_reason(self):
         driver = self.create_driver()

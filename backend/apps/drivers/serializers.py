@@ -7,6 +7,7 @@ from rest_framework import serializers
 
 from .models import DriverProfile, Vehicle, VerificationDocument
 from .validators import validate_document_file, validate_driver_profile_photo
+from .services import recompute_driver_status, recompute_vehicle_status
 
 
 class DriverProfileSerializer(serializers.ModelSerializer):
@@ -81,7 +82,7 @@ class VehicleSerializer(serializers.ModelSerializer):
         model = Vehicle
         fields = (
             "id", "registration_number", "make", "model", "manufacture_year",
-            "colour", "vehicle_type", "passenger_seats", "private_use_attested",
+            "colour", "vehicle_category", "vehicle_type", "passenger_seats", "private_use_attested",
             "verification_status", "verification_status_display", "created_at", "updated_at",
         )
         read_only_fields = (
@@ -100,16 +101,64 @@ class VehicleSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         instance = self.instance
-        if instance and instance.verification_status == Vehicle.VerificationStatus.APPROVED:
-            protected_fields = {"registration_number", "make", "model", "manufacture_year", "vehicle_type"}
-            if protected_fields.intersection(attrs):
-                raise serializers.ValidationError(
-                    "An approved vehicle's identity details cannot be edited. Contact support if a correction is required."
-                )
+        category = attrs.get(
+            "vehicle_category",
+            getattr(instance, "vehicle_category", Vehicle.VehicleCategory.FOUR_WHEELER),
+        )
+        vehicle_type = attrs.get("vehicle_type", getattr(instance, "vehicle_type", None))
+        passenger_seats = attrs.get("passenger_seats", getattr(instance, "passenger_seats", 1))
+        two_wheeler_types = {
+            Vehicle.VehicleType.MOTORCYCLE,
+            Vehicle.VehicleType.SCOOTER,
+            Vehicle.VehicleType.OTHER,
+        }
+        four_wheeler_types = {
+            Vehicle.VehicleType.HATCHBACK,
+            Vehicle.VehicleType.SEDAN,
+            Vehicle.VehicleType.SUV,
+            Vehicle.VehicleType.MUV,
+            Vehicle.VehicleType.OTHER,
+        }
+        allowed_types = two_wheeler_types if category == Vehicle.VehicleCategory.TWO_WHEELER else four_wheeler_types
+        if vehicle_type not in allowed_types:
+            raise serializers.ValidationError({
+                "vehicle_type": "Choose a vehicle subtype that matches the selected two-wheel or four-wheel category."
+            })
+        if category == Vehicle.VehicleCategory.TWO_WHEELER and passenger_seats > 1:
+            raise serializers.ValidationError({
+                "passenger_seats": "A two-wheeler can offer one passenger seat."
+            })
         return attrs
 
     def create(self, validated_data):
         return Vehicle.objects.create(owner=self.context["request"].user, **validated_data)
+
+    def update(self, instance, validated_data):
+        identity_fields = {
+            "registration_number", "make", "model", "manufacture_year",
+            "vehicle_category", "vehicle_type", "passenger_seats", "colour",
+        }
+        changed_identity = any(
+            field in validated_data and getattr(instance, field) != validated_data[field]
+            for field in identity_fields
+        )
+        vehicle = super().update(instance, validated_data)
+        if changed_identity:
+            # A changed vehicle record must be checked against its RC/insurance
+            # again. Re-queue the current documents rather than retaining stale
+            # approvals against changed vehicle details.
+            VerificationDocument.objects.filter(
+                vehicle=vehicle,
+                is_current=True,
+            ).update(
+                review_status=VerificationDocument.ReviewStatus.PENDING,
+                review_note="",
+                reviewed_by=None,
+                reviewed_at=None,
+            )
+            recompute_vehicle_status(vehicle)
+            recompute_driver_status(vehicle.owner)
+        return vehicle
 
 
 class VerificationDocumentSerializer(serializers.ModelSerializer):
@@ -204,19 +253,17 @@ class VerificationDocumentSerializer(serializers.ModelSerializer):
         document.full_clean()
         document.save()
 
-        profile = DriverProfile.objects.filter(user=owner).first()
-        if profile and profile.verification_status in (
-            DriverProfile.VerificationStatus.APPROVED,
-            DriverProfile.VerificationStatus.NEEDS_RESUBMISSION,
-        ):
-            profile.verification_status = DriverProfile.VerificationStatus.NEEDS_RESUBMISSION
-            profile.save(update_fields=["verification_status", "updated_at"])
-        if vehicle and vehicle.verification_status in (
-            Vehicle.VerificationStatus.APPROVED,
-            Vehicle.VerificationStatus.NEEDS_RESUBMISSION,
-        ):
-            vehicle.verification_status = Vehicle.VerificationStatus.NEEDS_RESUBMISSION
-            vehicle.save(update_fields=["verification_status", "updated_at"])
+        profile, _ = DriverProfile.objects.get_or_create(user=owner)
+        if profile.submitted_at is None:
+            profile.submitted_at = timezone.now()
+            profile.save(update_fields=["submitted_at", "updated_at"])
+
+        # Every uploaded document is independently reviewable. The admin queue
+        # receives this document immediately; the overall profile/vehicle
+        # remains pending until all mandatory documents are approved.
+        if vehicle:
+            recompute_vehicle_status(vehicle)
+        recompute_driver_status(owner)
         return document
 
 
@@ -224,6 +271,8 @@ class AdminVerificationDocumentSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source="owner.email", read_only=True)
     owner_name = serializers.CharField(source="owner.display_name", read_only=True)
     vehicle_registration = serializers.CharField(source="vehicle.registration_number", read_only=True, default=None)
+    vehicle_category = serializers.CharField(source="vehicle.vehicle_category", read_only=True, default=None)
+    vehicle_type = serializers.CharField(source="vehicle.vehicle_type", read_only=True, default=None)
     document_type_display = serializers.CharField(source="get_document_type_display", read_only=True)
     download_url = serializers.SerializerMethodField()
 
@@ -231,7 +280,7 @@ class AdminVerificationDocumentSerializer(serializers.ModelSerializer):
         model = VerificationDocument
         fields = (
             "id", "owner_email", "owner_name", "vehicle", "vehicle_registration",
-            "document_type", "document_type_display", "original_file_name", "content_type",
+            "vehicle_category", "vehicle_type", "document_type", "document_type_display", "original_file_name", "content_type",
             "file_size", "expiry_date", "review_status", "review_note", "uploaded_at",
             "download_url",
         )

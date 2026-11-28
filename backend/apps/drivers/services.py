@@ -8,10 +8,11 @@ REQUIRED_DRIVER_DOCUMENTS = (
     VerificationDocument.DocumentType.DRIVER_PHOTO,
 )
 
+# Vehicle photograph and pollution certificate are optional supporting items.
+# RC and active insurance are the mandatory per-vehicle documents.
 REQUIRED_VEHICLE_DOCUMENTS = (
     VerificationDocument.DocumentType.VEHICLE_REGISTRATION,
     VerificationDocument.DocumentType.INSURANCE,
-    VerificationDocument.DocumentType.VEHICLE_PHOTO,
 )
 
 
@@ -29,35 +30,42 @@ def current_document(owner, document_type, vehicle=None):
 
 
 def recompute_vehicle_status(vehicle):
-    if vehicle.verification_status in (
-        Vehicle.VerificationStatus.DRAFT,
-        Vehicle.VerificationStatus.SUSPENDED,
-    ):
+    if vehicle.verification_status == Vehicle.VerificationStatus.SUSPENDED:
         return vehicle.verification_status
 
     documents = {
         document_type: current_document(vehicle.owner, document_type, vehicle)
         for document_type in REQUIRED_VEHICLE_DOCUMENTS
     }
+    has_any_document = VerificationDocument.objects.filter(
+        owner=vehicle.owner,
+        vehicle=vehicle,
+        is_current=True,
+    ).exists()
 
-    if any(
+    if not has_any_document:
+        next_status = Vehicle.VerificationStatus.DRAFT
+    elif any(
         document and (
             document.review_status == VerificationDocument.ReviewStatus.REJECTED
             or document.is_expired
         )
         for document in documents.values()
     ):
-        vehicle.verification_status = Vehicle.VerificationStatus.NEEDS_RESUBMISSION
+        next_status = Vehicle.VerificationStatus.NEEDS_RESUBMISSION
     elif all(
-        document and document.review_status == VerificationDocument.ReviewStatus.APPROVED
+        document
+        and document.review_status == VerificationDocument.ReviewStatus.APPROVED
         and not document.is_expired
         for document in documents.values()
     ):
-        vehicle.verification_status = Vehicle.VerificationStatus.APPROVED
+        next_status = Vehicle.VerificationStatus.APPROVED
     else:
-        vehicle.verification_status = Vehicle.VerificationStatus.PENDING
+        next_status = Vehicle.VerificationStatus.PENDING
 
-    vehicle.save(update_fields=["verification_status", "updated_at"])
+    if vehicle.verification_status != next_status:
+        vehicle.verification_status = next_status
+        vehicle.save(update_fields=["verification_status", "updated_at"])
     return vehicle.verification_status
 
 
@@ -70,42 +78,55 @@ def recompute_driver_status(owner):
         document_type: current_document(owner, document_type)
         for document_type in REQUIRED_DRIVER_DOCUMENTS
     }
+    has_driver_documents = VerificationDocument.objects.filter(
+        owner=owner,
+        vehicle__isnull=True,
+        is_current=True,
+    ).exists()
     approved_vehicle = Vehicle.objects.filter(
         owner=owner,
         verification_status=Vehicle.VerificationStatus.APPROVED,
     ).exists()
+    vehicle_needs_resubmission = Vehicle.objects.filter(
+        owner=owner,
+        verification_status=Vehicle.VerificationStatus.NEEDS_RESUBMISSION,
+    ).exists()
+    has_vehicle_documents = VerificationDocument.objects.filter(
+        owner=owner,
+        vehicle__isnull=False,
+        is_current=True,
+    ).exists()
 
-    if any(
+    driver_document_rejected = any(
         document and (
             document.review_status == VerificationDocument.ReviewStatus.REJECTED
             or document.is_expired
         )
         for document in driver_documents.values()
-    ):
-        profile.verification_status = DriverProfile.VerificationStatus.NEEDS_RESUBMISSION
-    elif (
-        all(
-            document
-            and document.review_status == VerificationDocument.ReviewStatus.APPROVED
-            and not document.is_expired
-            for document in driver_documents.values()
-        )
-        and approved_vehicle
-    ):
-        profile.verification_status = DriverProfile.VerificationStatus.APPROVED
-    else:
-        vehicle_needs_resubmission = Vehicle.objects.filter(
-            owner=owner,
-            verification_status=Vehicle.VerificationStatus.NEEDS_RESUBMISSION,
-        ).exists()
-        if vehicle_needs_resubmission:
-            profile.verification_status = DriverProfile.VerificationStatus.NEEDS_RESUBMISSION
-        elif profile.submitted_at:
-            profile.verification_status = DriverProfile.VerificationStatus.PENDING
-        else:
-            profile.verification_status = DriverProfile.VerificationStatus.DRAFT
+    )
+    driver_documents_approved = all(
+        document
+        and document.review_status == VerificationDocument.ReviewStatus.APPROVED
+        and not document.is_expired
+        for document in driver_documents.values()
+    )
 
-    profile.save(update_fields=["verification_status", "updated_at"])
+    if driver_document_rejected:
+        next_status = DriverProfile.VerificationStatus.NEEDS_RESUBMISSION
+    elif driver_documents_approved and approved_vehicle:
+        # One fully approved vehicle is enough to verify the driver account.
+        # Each additional vehicle keeps its own independent review status.
+        next_status = DriverProfile.VerificationStatus.APPROVED
+    elif vehicle_needs_resubmission and not approved_vehicle:
+        next_status = DriverProfile.VerificationStatus.NEEDS_RESUBMISSION
+    elif profile.submitted_at or has_driver_documents or has_vehicle_documents:
+        next_status = DriverProfile.VerificationStatus.PENDING
+    else:
+        next_status = DriverProfile.VerificationStatus.DRAFT
+
+    if profile.verification_status != next_status:
+        profile.verification_status = next_status
+        profile.save(update_fields=["verification_status", "updated_at"])
     return profile.verification_status
 
 
@@ -116,6 +137,7 @@ def refresh_verification_status(owner, vehicle=None):
 
 
 def submit_vehicle_for_review(owner, vehicle):
+    """Legacy explicit submit endpoint; uploaded documents are already queued individually."""
     profile, _ = DriverProfile.objects.get_or_create(user=owner)
 
     missing = []
@@ -130,7 +152,7 @@ def submit_vehicle_for_review(owner, vehicle):
         elif document.is_expired:
             missing.append(f"A current {label.lower()}")
         elif document.review_status == VerificationDocument.ReviewStatus.REJECTED:
-            missing.append(f"Resubmit the rejected {label.toLowerCase()}")
+            missing.append(f"Resubmit the rejected {label.lower()}")
 
     vehicle_documents = {
         document_type: current_document(owner, document_type, vehicle)
@@ -139,7 +161,6 @@ def submit_vehicle_for_review(owner, vehicle):
     labels = {
         VerificationDocument.DocumentType.VEHICLE_REGISTRATION: "Vehicle registration certificate",
         VerificationDocument.DocumentType.INSURANCE: "Insurance certificate",
-        VerificationDocument.DocumentType.VEHICLE_PHOTO: "Vehicle photograph",
     }
     for document_type, document in vehicle_documents.items():
         if not document:
@@ -149,21 +170,14 @@ def submit_vehicle_for_review(owner, vehicle):
         elif document.review_status == VerificationDocument.ReviewStatus.REJECTED:
             missing.append(f"Resubmit the rejected {labels[document_type].lower()}")
 
-    if missing:
-        return profile, missing
+    if profile.submitted_at is None and VerificationDocument.objects.filter(
+        owner=owner, is_current=True
+    ).exists():
+        profile.submitted_at = timezone.now()
+        profile.save(update_fields=["submitted_at", "updated_at"])
 
-    now = timezone.now()
-    profile.verification_status = DriverProfile.VerificationStatus.PENDING
-    profile.submitted_at = now
-    profile.save(update_fields=["verification_status", "submitted_at", "updated_at"])
-
-    vehicle.verification_status = Vehicle.VerificationStatus.PENDING
-    vehicle.save(update_fields=["verification_status", "updated_at"])
-
-    # Documents may already have been reviewed while the driver was preparing
-    # the submission. Recalculate immediately so an already-complete file set
-    # does not remain stuck in Pending Review.
     recompute_vehicle_status(vehicle)
     recompute_driver_status(owner)
     profile.refresh_from_db()
-    return profile, []
+    vehicle.refresh_from_db()
+    return profile, missing
