@@ -233,14 +233,16 @@ export async function apiRequest<T>(
   if (authenticated && accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
   let response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
   if (authenticated && response.status === 401) {
-    if (await refreshAccessToken()) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed && accessToken) {
       headers.set("Authorization", `Bearer ${accessToken}`);
       response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
     }
     if (response.status === 401) {
-      // The retried request was rejected too, or refresh was definitively invalid.
-      // Preserve the session only when refresh failed for a transient reason.
-      if (!hasAuthSession()) throw sessionUnavailableError();
+      // If a freshly rotated access token is rejected too, the account session
+      // is no longer usable. A failed refresh with a retained refresh token,
+      // however, may simply be a temporary outage or rate limit.
+      if (refreshed) clearAuthTokens();
       throw sessionUnavailableError();
     }
   }
@@ -259,10 +261,12 @@ export async function downloadPrivateFile(path: string, filename: string): Promi
   const headers = new Headers({ Authorization: `Bearer ${accessToken}` });
   let response = await fetch(`${API_BASE_URL}${path}`, { headers });
   if (response.status === 401) {
-    if (await refreshAccessToken() && accessToken) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed && accessToken) {
       headers.set("Authorization", `Bearer ${accessToken}`);
       response = await fetch(`${API_BASE_URL}${path}`, { headers });
     }
+    if (response.status === 401 && refreshed) clearAuthTokens();
   }
   if (!response.ok) {
     if (response.status === 401 && !hasAuthSession()) throw sessionUnavailableError();
