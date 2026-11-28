@@ -22,8 +22,8 @@ export type AdminOverview = {
     driver_own_shares_total_inr: string;
     passenger_contributions_total_inr: string;
     passenger_contribution_records: number;
-    sandbox_payment_attempts: number;
-    sandbox_payments_by_status: CountMap;
+    razorpay_test_payment_attempts: number;
+    razorpay_test_payments_by_status: CountMap;
     notice: string;
   };
 };
