@@ -129,6 +129,8 @@ def submit_vehicle_for_review(owner, vehicle):
             missing.append(label)
         elif document.is_expired:
             missing.append(f"A current {label.lower()}")
+        elif document.review_status == VerificationDocument.ReviewStatus.REJECTED:
+            missing.append(f"Resubmit the rejected {label.toLowerCase()}")
 
     vehicle_documents = {
         document_type: current_document(owner, document_type, vehicle)
@@ -144,6 +146,8 @@ def submit_vehicle_for_review(owner, vehicle):
             missing.append(labels[document_type])
         elif document.is_expired:
             missing.append(f"Current {labels[document_type].lower()}")
+        elif document.review_status == VerificationDocument.ReviewStatus.REJECTED:
+            missing.append(f"Resubmit the rejected {labels[document_type].lower()}")
 
     if missing:
         return profile, missing
