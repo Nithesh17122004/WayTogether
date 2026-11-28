@@ -71,6 +71,12 @@ services:
         value: "https://router.project-osrm.org/route/v1/driving"
       - key: FINANCE_SANDBOX_ENABLED
         value: "false"
+      - key: RAZORPAY_TEST_MODE
+        value: "true"
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
       - key: PRIVATE_MEDIA_STORAGE_READY
         value: "false"
 
