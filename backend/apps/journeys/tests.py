@@ -256,6 +256,43 @@ class JourneyApiTests(APITestCase):
         self.assertEqual(response.data["id"], journey.pk)
         self.assertEqual(response.data["passenger_total_per_passenger"], "455.00")
 
+    def test_public_detail_and_upcoming_dashboard_share_the_same_eligibility_rule(self):
+        driver, _ = self.create_driver(approved=True)
+        vehicle = self.create_vehicle(driver, approved=True)
+        self.create_approved_documents(driver, vehicle)
+        journey = self.create_published_journey(driver, vehicle)
+        passenger = User.objects.create_user(
+            email="journey-viewer@example.com",
+            phone="+919876543219",
+            password="A-Strong-Unique-Password-928!",
+            role=User.Role.PASSENGER,
+            is_email_verified=True,
+            is_phone_verified=True,
+        )
+        self.client.force_authenticate(passenger)
+
+        upcoming = self.client.get("/api/v1/journeys/upcoming/")
+        self.assertEqual(upcoming.status_code, status.HTTP_200_OK)
+        self.assertIn(journey.pk, [item["id"] for item in upcoming.data])
+
+        detail = self.client.get(f"/api/v1/journeys/{journey.pk}/")
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail.data["id"], journey.pk)
+
+    def test_public_detail_remains_readable_after_departure_while_journey_is_published(self):
+        driver, _ = self.create_driver(approved=True)
+        vehicle = self.create_vehicle(driver, approved=True)
+        self.create_approved_documents(driver, vehicle)
+        journey = self.create_published_journey(driver, vehicle, timezone.localdate())
+        journey.departure_time = (
+            timezone.localtime().time().replace(tzinfo=None) - timedelta(minutes=2)
+        )
+        journey.save(update_fields=["departure_time"])
+
+        detail = self.client.get(f"/api/v1/journeys/{journey.pk}/")
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail.data["id"], journey.pk)
+
     def test_driver_can_only_list_own_journeys(self):
         driver, _ = self.create_driver()
         other, _ = self.create_driver("other@example.com")
