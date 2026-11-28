@@ -33,7 +33,11 @@ class DriverProfileView(APIView):
         return profile
 
     def get(self, request):
-        return Response(DriverProfileSerializer(self.get_profile(request), context={"request": request}).data)
+        data = DriverProfileSerializer(
+            self.get_profile(request), context={"request": request}
+        ).data
+        data["uploads_enabled"] = settings.PRIVATE_MEDIA_STORAGE_READY
+        return Response(data)
 
     def post(self, request):
         if "profile_photo" in request.data and not settings.PRIVATE_MEDIA_STORAGE_READY:
@@ -45,7 +49,9 @@ class DriverProfileView(APIView):
         serializer = DriverProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(DriverProfileSerializer(profile, context={"request": request}).data)
+        data = DriverProfileSerializer(profile, context={"request": request}).data
+        data["uploads_enabled"] = settings.PRIVATE_MEDIA_STORAGE_READY
+        return Response(data)
 
     def patch(self, request):
         if "profile_photo" in request.data and not settings.PRIVATE_MEDIA_STORAGE_READY:
