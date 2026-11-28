@@ -125,8 +125,8 @@ function AuthPage({ mode }: { mode: AuthMode }) {
     event.preventDefault();
     setBusy(true); setError(""); setNotice("");
     const normalizedPhone = phone.trim();
-    if (normalizedPhone && !/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
-      setError("Enter the mobile number in international format, such as +919876543210, or leave it blank.");
+    if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
+      setError("A mobile number is required. Use international format, for example +919876543210.");
       setBusy(false);
       return;
     }
@@ -136,7 +136,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
         body: JSON.stringify({
           full_name: fullName.trim(),
           email: email.trim().toLowerCase(),
-          phone: normalizedPhone || null,
+          phone: normalizedPhone,
           password,
           role,
           accepted_terms: acceptedTerms,
@@ -236,7 +236,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
       <Eyebrow>{isRegister ? "CREATE YOUR ACCOUNT" : "ACCOUNT ACCESS"}</Eyebrow><h2>{isRegister ? "Create your account" : "Sign in to WayTogether"}</h2><p>{isRegister ? "A few details to get started." : "Enter your details to access your account."}</p>
       {isRegister && <label className="wt-field"><span>Full name</span><input value={fullName} onChange={e=>setFullName(e.target.value)} placeholder="Your full name" autoComplete="name" required/></label>}
       <label className="wt-field"><span>Email address</span><input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" autoComplete="email" required/></label>
-      {isRegister && <><label className="wt-field"><span>Mobile number {role==="driver"?<small>(required for driver contact)</small>:<small>(optional)</small>}</span><input value={phone} onChange={e=>setPhone(e.target.value.replace(/[^0-9+]/g,""))} type="tel" inputMode="tel" placeholder="+919876543210" autoComplete="tel" maxLength={16} required={role==="driver"}/><small className="wt-field-hint">{role==="driver"?"Required as a contact number for confirmed, paid bookings. No mobile OTP or phone verification is required.":"Optional contact information only. No mobile OTP or phone verification is required."}</small></label><label className="wt-field"><span>Account type</span><select value={role} onChange={e=>setRole(e.target.value as "passenger"|"driver")}><option value="passenger">Passenger</option><option value="driver">Driver</option></select></label></>}
+      {isRegister && <><label className="wt-field"><span>Mobile number <small>(required)</small></span><input value={phone} onChange={e=>setPhone(e.target.value.replace(/[^0-9+]/g,""))} type="tel" inputMode="tel" placeholder="+919876543210" autoComplete="tel" maxLength={16} required/><small className="wt-field-hint">Required for all passengers and drivers. This registered number is shared with the other booking participant only after a confirmed booking has a successful, verified payment. No mobile OTP is currently used.</small></label><label className="wt-field"><span>Account type</span><select value={role} onChange={e=>setRole(e.target.value as "passenger"|"driver")}><option value="passenger">Passenger</option><option value="driver">Driver</option></select></label></>}
       <label className="wt-field"><span>Password</span><input value={password} onChange={e=>setPassword(e.target.value)} type="password" minLength={8} placeholder="At least 8 characters" autoComplete={isRegister ? "new-password" : "current-password"} required/></label>
       {isRegister && <label className="wt-terms-check"><input type="checkbox" checked={acceptedTerms} onChange={e=>setAcceptedTerms(e.target.checked)} required/><span>I accept the WayTogether terms and privacy policy.</span></label>}
       {error && <p className="wt-auth-error" role="alert">{error}</p>}{notice && <p className="wt-inline-notice" role="status">{notice}</p>}
@@ -270,6 +270,7 @@ function DashboardLayout({role,children}:{role:"Passenger"|"Driver"|"Admin";chil
 }
 
 type DriverProfileRecord = {
+  uploads_enabled: boolean;
   driver_photo_url: string | null;
   verification_status: string;
   verification_status_display: string;
@@ -297,6 +298,7 @@ const documentLabels: Record<string,string> = {
   insurance: "Insurance certificate",
   pollution_certificate: "Pollution certificate",
   vehicle_photo: "Vehicle photograph",
+  driver_photo: "Driver face photo",
 };
 function StatusPill({status}:{status:string}) {
   const tone = status === "approved" ? "approved" : status === "rejected" || status === "needs_resubmission" ? "rejected" : "pending";
@@ -325,29 +327,77 @@ type AdminPassengerKycRecord = {
 };
 
 function PassengerVerificationPage() {
+  const navigate = useNavigate();
   const [verification,setVerification] = useState<PassengerKycStatus>({status:"not_submitted",uploads_enabled:false});
   const [aadhaarFile,setAadhaarFile] = useState<File|null>(null);
   const [photoFile,setPhotoFile] = useState<File|null>(null);
   const [consent,setConsent] = useState(false);
+  const [phone,setPhone] = useState("");
+  const [phoneSaved,setPhoneSaved] = useState(false);
   const [loading,setLoading] = useState(true);
   const [busy,setBusy] = useState(false);
+  const [phoneBusy,setPhoneBusy] = useState(false);
   const [error,setError] = useState("");
   const [notice,setNotice] = useState("");
 
   const load = async () => {
     setLoading(true); setError("");
+    if (!hasAuthSession()) {
+      navigate("/login", { replace: true });
+      setLoading(false);
+      return;
+    }
     try {
-      setVerification(await apiRequest<PassengerKycStatus>("/auth/passenger-verification/",{},true));
+      const [statusData,userData] = await Promise.all([
+        apiRequest<PassengerKycStatus>("/auth/passenger-verification/",{},true),
+        apiRequest<{phone:string|null}>("/auth/me/",{},true),
+      ]);
+      setVerification(statusData);
+      setPhone(userData.phone ?? "");
+      setPhoneSaved(Boolean(userData.phone));
     } catch(err) {
-      setError(err instanceof Error?err.message:"Could not load passenger identity status.");
+      const message=err instanceof Error?err.message:"Could not load passenger identity status.";
+      setError(message);
+      if(message.toLowerCase().includes("session has expired")) navigate("/login",{replace:true});
     } finally { setLoading(false); }
   };
   useEffect(()=>{void load();},[]);
 
+  const savePhone = async (event:FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalized=phone.trim();
+    if(!/^\+[1-9]\d{7,14}$/.test(normalized)) {
+      setError("Enter your mobile number in international format, such as +919876543210.");
+      return;
+    }
+    setPhoneBusy(true); setError(""); setNotice("");
+    try {
+      const result=await apiRequest<{phone:string|null}>("/auth/me/",{
+        method:"PATCH",body:JSON.stringify({phone:normalized}),
+      },true);
+      setPhone(result.phone ?? "");
+      setPhoneSaved(Boolean(result.phone));
+      setNotice("Registered mobile number saved.");
+    } catch(err) { setError(err instanceof Error?err.message:"Could not save your mobile number."); }
+    finally { setPhoneBusy(false); }
+  };
+
   const submit = async (event:FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if(!hasAuthSession()) {
+      navigate("/login",{replace:true});
+      return;
+    }
+    if(!phoneSaved) {
+      setError("Save your registered mobile number before submitting identity verification.");
+      return;
+    }
     if(!aadhaarFile||!photoFile||!consent) {
       setError("Choose both documents and accept the identity-verification consent.");
+      return;
+    }
+    if(!verification.uploads_enabled) {
+      setError("Private persistent document storage is not configured yet. Your documents have not been submitted.");
       return;
     }
     setBusy(true); setError(""); setNotice("");
@@ -367,14 +417,25 @@ function PassengerVerificationPage() {
       const a = document.getElementById("wt-passenger-aadhaar") as HTMLInputElement|null;
       const p = document.getElementById("wt-passenger-photo") as HTMLInputElement|null;
       if(a)a.value=""; if(p)p.value="";
-    } catch(err) { setError(err instanceof Error?err.message:"Could not submit verification."); }
-    finally { setBusy(false); }
+    } catch(err) {
+      const message=err instanceof Error?err.message:"Could not submit verification.";
+      setError(message);
+      if(message.toLowerCase().includes("session has expired")) navigate("/login",{replace:true});
+    } finally { setBusy(false); }
   };
 
   return <DashboardLayout role="Passenger">
     <div className="wt-dash-heading"><div><Eyebrow>PASSENGER IDENTITY</Eyebrow><h1>Verify your passenger profile.</h1><p>Submit your identity proof and a clear profile photo for manual review.</p></div><StatusPill status={verification.status}/></div>
     <div className="wt-verification-intro"><ShieldCheck/><div><b>Private manual verification</b><small>Files are private and available only to you and authorised administrators. Do not upload a full unmasked Aadhaar number or biometric data.</small></div><StatusPill status={verification.status}/></div>
-    {error&&<p className="wt-auth-error" role="alert">{error}</p>}{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
+    {error&&<p className="wt-auth-error" role="alert">{error}</p>}
+    {notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
+    <section className="wt-panel wt-verification-card">
+      <div className="wt-panel-heading"><div><h2>Registered mobile number</h2><p>Required for all passenger accounts and shared only with the other participant after successful payment.</p></div>{phoneSaved?<StatusPill status="approved"/>:<StatusPill status="pending"/>}</div>
+      <form className="wt-profile-fields" onSubmit={savePhone}>
+        <label className="wt-field wt-span-2"><span>Mobile number</span><input value={phone} onChange={e=>{setPhone(e.target.value.replace(/[^0-9+]/g,""));setPhoneSaved(false);}} type="tel" inputMode="tel" maxLength={16} placeholder="+919876543210" required/><small>Use international format. No phone OTP is currently used.</small></label>
+        <button className="wt-btn wt-btn-outline" type="submit" disabled={phoneBusy||!/^\+[1-9]\d{7,14}$/.test(phone.trim())}>{phoneBusy?"Saving…":phoneSaved?"Update mobile number":"Save mobile number"}</button>
+      </form>
+    </section>
     {!loading&&!verification.uploads_enabled&&<div className="wt-market-notice info" role="status"><b>Identity uploads are temporarily unavailable.</b> WayTogether must finish configuring private persistent document storage before accepting identity files. Your selected documents have not been submitted or saved. Please do not retry until this notice disappears.</div>}
     {loading?<div className="wt-panel wt-verification-loading">Loading your verification status…</div>:<>
       {verification.review_note&&<div className="wt-market-notice info">Administrator note: {verification.review_note}</div>}
@@ -384,7 +445,7 @@ function PassengerVerificationPage() {
           <label className="wt-field wt-file-field"><span>Masked Aadhaar proof (PDF, JPG or PNG)</span><input id="wt-passenger-aadhaar" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>setAadhaarFile(e.target.files?.[0]??null)} required/><small>{aadhaarFile?.name??"Upload a copy with the first eight Aadhaar digits hidden"}</small></label>
           <label className="wt-field wt-file-field"><span>Passenger photo (JPG or PNG)</span><input id="wt-passenger-photo" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={e=>setPhotoFile(e.target.files?.[0]??null)} required/><small>{photoFile?.name??"Upload a recent, clear face photo"}</small></label>
           <label className="wt-private-attest"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>I consent to WayTogether using these documents for passenger identity verification, restricting access to authorised reviewers, and retaining them only as required for this verification purpose.</span></label>
-          <button className="wt-btn wt-btn-primary" disabled={busy||!consent||!verification.uploads_enabled}>{busy?"Submitting…":"Submit for manual verification"} <ArrowRight size={15}/></button>
+          <button className="wt-btn wt-btn-primary" disabled={busy||!consent||!verification.uploads_enabled||!phoneSaved}>{busy?"Submitting…":"Submit for manual verification"} <ArrowRight size={15}/></button>
         </form>
         <p className="wt-legal-small">Only upload a masked Aadhaar document with the first eight digits redacted. Never enter a 12-digit Aadhaar number into the app. You can resubmit if a reviewer rejects the documents.</p>
       </section>
@@ -503,14 +564,16 @@ function DriverVerificationPage() {
 
   const uploadDocument = async (event:FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!profile?.uploads_enabled) { setError("Private persistent file storage is not configured. Driver documents have not been uploaded."); return; }
     if (!file) { setError("Choose a PDF, JPG or PNG document."); return; }
-    if (documentType !== "driver_license" && !selectedVehicle) { setError("Add and select a vehicle first."); return; }
+    const needsVehicle = !["driver_license","driver_photo"].includes(documentType);
+    if (needsVehicle && !selectedVehicle) { setError("Add and select a vehicle first."); return; }
     setBusy(true); setError(""); setNotice("");
     try {
       const body = new FormData();
       body.append("document_type",documentType);
       body.append("file",file);
-      if (documentType !== "driver_license") body.append("vehicle",selectedVehicle);
+      if (needsVehicle) body.append("vehicle",selectedVehicle);
       if (expiryDate) body.append("expiry_date",expiryDate);
       const result = await apiRequest<DriverDocumentRecord>("/drivers/documents/",{method:"POST",body},true);
       setNotice((documentLabels[result.document_type] ?? "Document") + " uploaded. Its review status is pending.");
@@ -538,9 +601,11 @@ function DriverVerificationPage() {
 
   const currentDocs = documents.filter(doc=>doc.is_current);
   const licenseUploaded = currentDocs.some(doc=>doc.document_type==="driver_license");
+  const driverPhotoUploaded = currentDocs.some(doc=>doc.document_type==="driver_photo");
   return <DashboardLayout role="Driver"><div className="wt-dash-heading"><div><Eyebrow>DRIVER VERIFICATION</Eyebrow><h1>Verify your driver profile.</h1><p>Add your vehicle and submit the required documents for administrator review.</p></div><PreviewLabel/></div>
     <div className="wt-verification-intro"><ShieldCheck/><div><b>Private document handling</b><small>Your uploaded documents are stored privately. Only your account and authorised platform administrators can access them through the protected document endpoint.</small></div><StatusPill status={profile?.verification_status ?? "draft"}/></div>
     {error&&<p className="wt-auth-error" role="alert">{error}</p>}{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
+    {!loading&&!profile?.uploads_enabled&&<div className="wt-market-notice info" role="status"><b>Driver document uploads are temporarily unavailable.</b> Private persistent file storage must be configured before WayTogether can accept your driving licence, driver photo, RC or vehicle documents. Nothing has been submitted yet.</div>}
     {loading ? <div className="wt-panel wt-verification-loading">Loading your verification details…</div> : <>
       <section className="wt-panel wt-verification-card">
         <div className="wt-panel-heading"><div><h2>Driver profile</h2><p>Basic information used for driver verification.</p></div><StatusPill status={profile?.verification_status ?? "draft"}/></div>
@@ -549,7 +614,7 @@ function DriverVerificationPage() {
           <label className="wt-field"><span>State</span><input name="state" defaultValue={profile?.state ?? ""} placeholder="Your state"/></label>
           <label className="wt-field wt-span-2"><span>Contact phone number</span><input name="contact_phone" type="tel" inputMode="tel" defaultValue={profile?.contact_phone ?? ""} placeholder="+919876543210" required/><small>Shown to a passenger only after a confirmed booking and successful payment. No OTP or phone verification is used.</small></label>
           <label className="wt-field wt-span-2"><span>Short driver introduction</span><input name="bio" defaultValue={profile?.bio ?? ""} maxLength={500} placeholder="A brief introduction for fellow travellers"/></label>
-          <div className="wt-field wt-span-2"><span>Driver profile photo</span>{profile?.driver_photo_url&&<img className="wt-driver-photo-preview" src={profile.driver_photo_url} alt="Your public driver profile"/>}<input id="wt-driver-profile-photo" name="profile_photo" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png"/><small>This photo is shown on your published rides. JPG or PNG, maximum 5 MB.</small></div>
+          <div className="wt-field wt-span-2"><span>Driver profile photo</span>{profile?.driver_photo_url?<img className="wt-driver-photo-preview" src={profile.driver_photo_url} alt="Your administrator-approved driver photo"/>:<small>Upload a driver face photo in the verification documents section. It will appear on published rides only after administrator approval.</small>}</div>
           <button className="wt-btn wt-btn-outline" disabled={busy}>Save profile</button>
         </form>
       </section>
@@ -574,20 +639,20 @@ function DriverVerificationPage() {
         <div className="wt-panel-heading"><div><h2>Upload verification documents</h2><p>Accepted file formats: PDF, JPG or PNG. Maximum file size: 8 MB per document.</p></div></div>
         <form className="wt-document-form" onSubmit={uploadDocument}>
           <label className="wt-field"><span>Document type</span><select value={documentType} onChange={e=>setDocumentType(e.target.value)}>{Object.entries(documentLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
-          {documentType!=="driver_license"&&<label className="wt-field"><span>Vehicle</span><select value={selectedVehicle} onChange={e=>setSelectedVehicle(e.target.value)} required><option value="">Select a vehicle</option>{vehicles.map(v=><option key={v.id} value={v.id}>{v.registration_number} · {v.make} {v.model}</option>)}</select></label>}
+          {!["driver_license","driver_photo"].includes(documentType)&&<label className="wt-field"><span>Vehicle</span><select value={selectedVehicle} onChange={e=>setSelectedVehicle(e.target.value)} required><option value="">Select a vehicle</option>{vehicles.map(v=><option key={v.id} value={v.id}>{v.registration_number} · {v.make} {v.model}</option>)}</select></label>}
           <label className="wt-field"><span>Expiry date (where applicable)</span><input type="date" min={new Date().toISOString().slice(0,10)} value={expiryDate} onChange={e=>setExpiryDate(e.target.value)}/></label>
-          <label className="wt-field wt-file-field"><span>Select document file</span><input id="wt-driver-document-file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>setFile(e.target.files?.[0]??null)} required/><small>{file ? file.name : "Choose a file from your device"}</small></label>
-          <button className="wt-btn wt-btn-primary" disabled={busy||(!vehicles.length&&documentType!=="driver_license")}>Upload document <ArrowUpRight size={15}/></button>
+          <label className="wt-field wt-file-field"><span>Select document file</span><input id="wt-driver-document-file" type="file" accept={documentType==="driver_photo"?".jpg,.jpeg,.png,image/jpeg,image/png":".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"} onChange={e=>setFile(e.target.files?.[0]??null)} required/><small>{file ? file.name : "Choose a file from your device"}</small></label>
+          <button className="wt-btn wt-btn-primary" disabled={busy||!profile?.uploads_enabled||(!vehicles.length&&!["driver_license","driver_photo"].includes(documentType))}>Upload document <ArrowUpRight size={15}/></button>
         </form>
         <div className="wt-required-docs"><b>Required before submitting a vehicle</b><div className="wt-required-grid">
-          {[["Driving licence",licenseUploaded],["Vehicle registration",currentDocs.some(d=>d.document_type==="vehicle_registration"&&String(d.vehicle)===selectedVehicle)],["Insurance certificate",currentDocs.some(d=>d.document_type==="insurance"&&String(d.vehicle)===selectedVehicle)],["Vehicle photograph",currentDocs.some(d=>d.document_type==="vehicle_photo"&&String(d.vehicle)===selectedVehicle)]].map(([label,done])=><span key={String(label)} className={done?"is-uploaded":""}>{done?<Check size={13}/>:<FileCheck2 size={13}/>} {label}</span>)}
+          {[["Driving licence",licenseUploaded],["Driver face photo",driverPhotoUploaded],["Vehicle registration",currentDocs.some(d=>d.document_type==="vehicle_registration"&&String(d.vehicle)===selectedVehicle)],["Insurance certificate",currentDocs.some(d=>d.document_type==="insurance"&&String(d.vehicle)===selectedVehicle)],["Vehicle photograph",currentDocs.some(d=>d.document_type==="vehicle_photo"&&String(d.vehicle)===selectedVehicle)]].map(([label,done])=><span key={String(label)} className={done?"is-uploaded":""}>{done?<Check size={13}/>:<FileCheck2 size={13}/>} {label}</span>)}
         </div><small>Pollution certificate can also be uploaded where applicable. Document completeness is checked before submission; approval requires administrator review.</small></div>
         {currentDocs.length>0&&<div className="wt-document-list"><b>Uploaded documents</b>{currentDocs.map(doc=><div className="wt-document-row" key={doc.id}><FileCheck2 size={17}/><span><b>{documentLabels[doc.document_type]??doc.document_type}</b><small>{doc.original_file_name} · {doc.vehicle_registration??"Driver document"}{doc.review_note ? " · " + doc.review_note : ""}</small></span><StatusPill status={doc.review_status}/><button className="wt-link-button" type="button" onClick={async()=>{try{await downloadPrivateFile("/drivers/documents/"+doc.id+"/download/",doc.original_file_name);}catch(err){setError(err instanceof Error?err.message:"Download failed.");}}}>Download</button></div>)}</div>}
       </section>
 
       <section className="wt-panel wt-submit-verification">
-        <div><h3>Submit a vehicle for verification</h3><p>Select a vehicle after uploading its RC, insurance, vehicle photo and your driving licence.</p></div>
-        {vehicles.length===0?<span className="wt-muted">Add a vehicle first.</span>:vehicles.map(vehicle=><div className="wt-submit-row" key={vehicle.id}><span><b>{vehicle.registration_number}</b><small>{vehicle.make} {vehicle.model}</small></span><StatusPill status={vehicle.verification_status}/><button className="wt-btn wt-btn-primary" type="button" disabled={busy||vehicle.verification_status==="approved"} onClick={()=>submitVehicle(vehicle.id)}>Submit for review <ArrowRight size={15}/></button></div>)}
+        <div><h3>Submit a vehicle for verification</h3><p>Upload your driving licence and face photo, then submit each vehicle with its RC, insurance and vehicle photo.</p></div>
+        {vehicles.length===0?<span className="wt-muted">Add a vehicle first.</span>:vehicles.map(vehicle=><div className="wt-submit-row" key={vehicle.id}><span><b>{vehicle.registration_number}</b><small>{vehicle.make} {vehicle.model}</small></span><StatusPill status={vehicle.verification_status}/><button className="wt-btn wt-btn-primary" type="button" disabled={busy||!profile?.uploads_enabled||vehicle.verification_status==="approved"} onClick={()=>submitVehicle(vehicle.id)}>Submit for review <ArrowRight size={15}/></button></div>)}
       </section>
     </>}
   </DashboardLayout>;

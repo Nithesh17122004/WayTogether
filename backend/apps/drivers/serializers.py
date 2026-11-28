@@ -14,7 +14,6 @@ class DriverProfileSerializer(serializers.ModelSerializer):
         source="get_verification_status_display",
         read_only=True,
     )
-    profile_photo = serializers.FileField(write_only=True, required=False, validators=[validate_driver_profile_photo])
     contact_phone = serializers.CharField(
         source="user.phone",
         required=False,
@@ -27,7 +26,7 @@ class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverProfile
         fields = (
-            "id", "bio", "city", "state", "contact_phone", "profile_photo", "driver_photo_url", "verification_status",
+            "id", "bio", "city", "state", "contact_phone", "driver_photo_url", "verification_status",
             "verification_status_display", "submitted_at", "created_at", "updated_at",
         )
         read_only_fields = (
@@ -55,10 +54,16 @@ class DriverProfileSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
     def get_driver_photo_url(self, obj):
-        if not obj.profile_photo:
-            return None
         request = self.context.get("request")
         if not request:
+            return None
+        has_approved_photo = VerificationDocument.objects.filter(
+            owner_id=obj.user_id,
+            document_type=VerificationDocument.DocumentType.DRIVER_PHOTO,
+            review_status=VerificationDocument.ReviewStatus.APPROVED,
+            is_current=True,
+        ).exists()
+        if not has_approved_photo:
             return None
         from django.urls import reverse
         return request.build_absolute_uri(
@@ -158,8 +163,16 @@ class VerificationDocumentSerializer(serializers.ModelSerializer):
         }
         if document_type in vehicle_document_types and vehicle is None:
             raise serializers.ValidationError({"vehicle": "Select the vehicle this document belongs to."})
-        if document_type == VerificationDocument.DocumentType.DRIVER_LICENSE and vehicle is not None:
-            raise serializers.ValidationError({"vehicle": "A driving licence belongs to the driver, not a vehicle."})
+        if document_type in {
+            VerificationDocument.DocumentType.DRIVER_LICENSE,
+            VerificationDocument.DocumentType.DRIVER_PHOTO,
+        } and vehicle is not None:
+            raise serializers.ValidationError({"vehicle": "Driver identity documents do not belong to a vehicle."})
+        if document_type == VerificationDocument.DocumentType.DRIVER_PHOTO and attrs.get("file"):
+            try:
+                validate_driver_profile_photo(attrs["file"])
+            except Exception as exc:
+                raise serializers.ValidationError({"file": str(exc)})
 
         expiry_date = attrs.get("expiry_date")
         if expiry_date and expiry_date < timezone.localdate():

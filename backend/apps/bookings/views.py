@@ -2,6 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from django.db import IntegrityError, transaction
+from django.db.models import Exists, OuterRef
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -29,8 +30,25 @@ def journey_has_departed(journey):
     return timezone.now() >= departure
 
 
+def _with_captured_contact_payment(queryset):
+    from apps.finance.models import RazorpayPayment
+
+    captured_payment = RazorpayPayment.objects.filter(
+        contribution__booking_id=OuterRef("pk"),
+        status=RazorpayPayment.Status.CAPTURED,
+    )
+    return queryset.annotate(
+        has_captured_contact_payment=Exists(captured_payment)
+    )
+
+
 def _read_booking(booking, request):
-    return BookingSerializer(booking, context={"request": request}).data
+    annotated = _with_captured_contact_payment(
+        Booking.objects.filter(pk=booking.pk).select_related(
+            "journey", "journey__driver", "journey__vehicle", "passenger"
+        )
+    ).get()
+    return BookingSerializer(annotated, context={"request": request}).data
 
 
 class PassengerBookingCreateView(APIView):
@@ -134,7 +152,7 @@ class PassengerBookingListView(generics.ListAPIView):
     serializer_class = BookingSerializer
 
     def get_queryset(self):
-        return (
+        return _with_captured_contact_payment(
             Booking.objects.filter(passenger=self.request.user)
             .select_related("journey", "journey__driver", "journey__vehicle", "passenger")
             .order_by("-requested_at")
@@ -146,7 +164,7 @@ class DriverBookingRequestListView(generics.ListAPIView):
     serializer_class = BookingSerializer
 
     def get_queryset(self):
-        queryset = (
+        queryset = _with_captured_contact_payment(
             Booking.objects.filter(journey__driver=self.request.user)
             .select_related("journey", "journey__driver", "journey__vehicle", "passenger")
             .order_by("-requested_at")
@@ -331,8 +349,10 @@ class BookingDetailView(APIView):
 
     def get(self, request, pk):
         booking = get_object_or_404(
-            Booking.objects.select_related(
-                "journey", "journey__driver", "journey__vehicle", "passenger"
+            _with_captured_contact_payment(
+                Booking.objects.select_related(
+                    "journey", "journey__driver", "journey__vehicle", "passenger"
+                )
             ),
             pk=pk,
         )

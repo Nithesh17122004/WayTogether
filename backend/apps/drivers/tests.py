@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -11,10 +12,15 @@ from .models import DriverProfile, Vehicle, VerificationDocument
 
 User = get_user_model()
 PDF_BYTES = b"%PDF-1.4\nWayTogether test document\n%%EOF"
+JPEG_BYTES = b"\xff\xd8\xffWayTogether test photo"
 
 
 def make_pdf(name="test-document.pdf", content=PDF_BYTES, content_type="application/pdf"):
     return SimpleUploadedFile(name, content, content_type=content_type)
+
+
+def make_jpg(name="driver-photo.jpg"):
+    return SimpleUploadedFile(name, JPEG_BYTES, content_type="image/jpeg")
 
 
 class DriverVerificationApiTests(APITestCase):
@@ -43,9 +49,10 @@ class DriverVerificationApiTests(APITestCase):
         )
 
     def upload_document(self, client, document_type, vehicle=None, expiry_date=None, name=None):
+        uploaded = make_jpg(name or "driver-photo.jpg") if document_type == "driver_photo" else make_pdf(name or f"{document_type}.pdf")
         payload = {
             "document_type": document_type,
-            "file": make_pdf(name or f"{document_type}.pdf"),
+            "file": uploaded,
         }
         if vehicle:
             payload["vehicle"] = str(vehicle.pk)
@@ -180,7 +187,7 @@ class DriverVerificationApiTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(len(response.data["missing_documents"]), 4)
+        self.assertEqual(len(response.data["missing_documents"]), 5)
 
     def test_documents_must_be_admin_approved_before_driver_is_approved(self):
         driver = self.create_driver()
@@ -193,6 +200,7 @@ class DriverVerificationApiTests(APITestCase):
         self.client.force_authenticate(driver)
         uploads = [
             self.upload_document(self.client, "driver_license"),
+            self.upload_document(self.client, "driver_photo"),
             self.upload_document(self.client, "vehicle_registration", vehicle),
             self.upload_document(self.client, "insurance", vehicle, date.today() + timedelta(days=365)),
             self.upload_document(self.client, "vehicle_photo", vehicle),
@@ -238,6 +246,51 @@ class DriverVerificationApiTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_existing_driver_without_mobile_can_open_profile_and_add_one(self):
+        driver = User.objects.create_user(
+            email="legacy-driver@example.com",
+            phone=None,
+            password="A-Strong-Unique-Password-928!",
+            role=User.Role.DRIVER,
+            is_email_verified=True,
+        )
+        self.client.force_authenticate(driver)
+        profile = self.client.get("/api/v1/drivers/profile/")
+        self.assertEqual(profile.status_code, status.HTTP_200_OK)
+        self.assertFalse(profile.data["contact_phone"])
+
+        updated = self.client.patch(
+            "/api/v1/drivers/profile/",
+            {"contact_phone": "+919876543260"},
+            format="json",
+        )
+        self.assertEqual(updated.status_code, status.HTTP_200_OK)
+        driver.refresh_from_db()
+        self.assertEqual(driver.phone, "+919876543260")
+
+    @override_settings(PRIVATE_MEDIA_STORAGE_READY=False)
+    def test_driver_document_upload_is_blocked_without_private_storage(self):
+        driver = self.create_driver()
+        self.client.force_authenticate(driver)
+        response = self.client.post(
+            "/api/v1/drivers/documents/",
+            {"document_type": "driver_license", "file": make_pdf()},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertFalse(VerificationDocument.objects.filter(owner=driver).exists())
+
+    def test_driver_face_photo_accepts_only_jpeg_or_png(self):
+        driver = self.create_driver()
+        self.client.force_authenticate(driver)
+        response = self.client.post(
+            "/api/v1/drivers/documents/",
+            {"document_type": "driver_photo", "file": make_pdf()},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(VerificationDocument.objects.filter(owner=driver).exists())
 
     def test_unverified_driver_cannot_upload_documents(self):
         driver = User.objects.create_user(

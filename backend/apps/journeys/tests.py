@@ -70,6 +70,17 @@ class JourneyApiTests(APITestCase):
             document_type=VerificationDocument.DocumentType.DRIVER_LICENSE,
             **common,
         )
+        VerificationDocument.objects.create(
+            owner=owner,
+            document_type=VerificationDocument.DocumentType.DRIVER_PHOTO,
+            file="private/test-driver-photo.jpg",
+            original_file_name="test-driver-photo.jpg",
+            content_type="image/jpeg",
+            file_size=128,
+            review_status=VerificationDocument.ReviewStatus.APPROVED,
+            reviewed_at=timezone.now(),
+            is_current=True,
+        )
         for document_type in (
             VerificationDocument.DocumentType.VEHICLE_REGISTRATION,
             VerificationDocument.DocumentType.INSURANCE,
@@ -508,6 +519,17 @@ class BookingApiTests(APITestCase):
         VerificationDocument.objects.create(
             document_type=VerificationDocument.DocumentType.DRIVER_LICENSE,
             **base,
+        )
+        VerificationDocument.objects.create(
+            owner=driver,
+            document_type=VerificationDocument.DocumentType.DRIVER_PHOTO,
+            file="private/test-driver-photo.jpg",
+            original_file_name="test-driver-photo.jpg",
+            content_type="image/jpeg",
+            file_size=128,
+            review_status=VerificationDocument.ReviewStatus.APPROVED,
+            reviewed_at=timezone.now(),
+            is_current=True,
         )
         for document_type in (
             VerificationDocument.DocumentType.VEHICLE_REGISTRATION,

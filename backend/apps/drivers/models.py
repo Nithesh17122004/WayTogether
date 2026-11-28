@@ -7,6 +7,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.text import get_valid_filename
 
+from .storage import get_private_driver_storage
 from .validators import validate_document_file, validate_driver_profile_photo
 
 
@@ -36,6 +37,7 @@ class DriverProfile(models.Model):
     bio = models.CharField(max_length=500, blank=True)
     profile_photo = models.FileField(
         upload_to=private_driver_photo_upload_to,
+        storage=get_private_driver_storage,
         validators=[validate_driver_profile_photo],
         blank=True,
         max_length=255,
@@ -114,6 +116,7 @@ class VerificationDocument(models.Model):
         INSURANCE = "insurance", "Insurance certificate"
         POLLUTION_CERTIFICATE = "pollution_certificate", "Pollution certificate"
         VEHICLE_PHOTO = "vehicle_photo", "Vehicle photograph"
+        DRIVER_PHOTO = "driver_photo", "Driver face photo"
 
     class ReviewStatus(models.TextChoices):
         PENDING = "pending", "Pending review"
@@ -135,6 +138,7 @@ class VerificationDocument(models.Model):
     document_type = models.CharField(max_length=32, choices=DocumentType.choices)
     file = models.FileField(
         upload_to=private_document_upload_to,
+        storage=get_private_driver_storage,
         validators=[validate_document_file],
         max_length=255,
     )
@@ -183,9 +187,9 @@ class VerificationDocument(models.Model):
         if self.document_type in vehicle_document_types and not self.vehicle_id:
             from django.core.exceptions import ValidationError
             raise ValidationError({"vehicle": "Select the vehicle this document belongs to."})
-        if self.document_type == self.DocumentType.DRIVER_LICENSE and self.vehicle_id:
+        if self.document_type in {self.DocumentType.DRIVER_LICENSE, self.DocumentType.DRIVER_PHOTO} and self.vehicle_id:
             from django.core.exceptions import ValidationError
-            raise ValidationError({"vehicle": "A driving licence belongs to the driver, not a vehicle."})
+            raise ValidationError({"vehicle": "A driver identity document belongs to the driver, not a vehicle."})
         if self.vehicle_id and self.vehicle.owner_id != self.owner_id:
             from django.core.exceptions import ValidationError
             raise ValidationError({"vehicle": "The selected vehicle does not belong to this driver."})

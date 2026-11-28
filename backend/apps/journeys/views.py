@@ -10,14 +10,14 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.drivers.models import DriverProfile, Vehicle
+from apps.drivers.models import DriverProfile, Vehicle, VerificationDocument
 from apps.bookings.models import Booking
 from apps.trust.models import Notification
 from apps.trust.services import notify
 from apps.drivers.services import recompute_driver_status, recompute_vehicle_status
 from .geo import haversine_km
 from .models import Journey
-from .permissions import IsVerifiedDriver
+from .permissions import IsDriverAccount, IsVerifiedDriver
 from .serializers import JourneySerializer
 from .services import MapsProviderError, MapsRateLimitError, get_route_preview, search_locations
 
@@ -66,7 +66,9 @@ def _published_queryset():
             driver__is_active=True,
             driver__is_email_verified=True,
             driver__driver_profile__verification_status=DriverProfile.VerificationStatus.APPROVED,
-            driver__driver_profile__profile_photo__gt="",
+            driver__driver_documents__document_type=VerificationDocument.DocumentType.DRIVER_PHOTO,
+            driver__driver_documents__review_status=VerificationDocument.ReviewStatus.APPROVED,
+            driver__driver_documents__is_current=True,
             vehicle__verification_status=Vehicle.VerificationStatus.APPROVED,
         )
         .select_related("driver", "vehicle", "driver__driver_profile")
@@ -128,7 +130,9 @@ class RoutePreviewView(APIView):
 class JourneyListCreateView(APIView):
     def get_permissions(self):
         if self.request.method == "POST":
-            return [IsAuthenticated(), IsVerifiedDriver()]
+            # Drivers can prepare drafts while KYC is pending; publishing is
+            # separately protected by IsVerifiedDriver.
+            return [IsAuthenticated(), IsDriverAccount()]
         return [AllowAny()]
 
     def get(self, request):
@@ -203,7 +207,8 @@ class JourneyListCreateView(APIView):
 
 
 class MyJourneyListView(generics.ListAPIView):
-    permission_classes = [IsAuthenticated, IsVerifiedDriver]
+    # A pending driver must still be able to manage and see their saved drafts.
+    permission_classes = [IsAuthenticated, IsDriverAccount]
     serializer_class = JourneySerializer
 
     def get_queryset(self):
@@ -286,8 +291,14 @@ class JourneyPublishView(APIView):
 
             if profile.verification_status != DriverProfile.VerificationStatus.APPROVED:
                 return Response({"detail": "Your driver verification must be approved before publishing."}, status=403)
-            if not profile.profile_photo:
-                return Response({"detail": "Upload a driver profile photo before publishing a journey."}, status=400)
+            approved_driver_photo = VerificationDocument.objects.filter(
+                owner=request.user,
+                document_type=VerificationDocument.DocumentType.DRIVER_PHOTO,
+                review_status=VerificationDocument.ReviewStatus.APPROVED,
+                is_current=True,
+            ).exists()
+            if not approved_driver_photo:
+                return Response({"detail": "Upload your driver face photo and wait for administrator approval before publishing."}, status=403)
             if not request.user.phone:
                 return Response(
                     {"detail": "Add a driver contact phone number before publishing. Phone OTP verification is not required."},
