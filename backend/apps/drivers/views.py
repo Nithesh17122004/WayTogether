@@ -75,7 +75,7 @@ class VehicleListCreateView(generics.ListCreateAPIView):
         serializer.save()
 
 
-class VehicleDetailView(generics.RetrieveAPIView):
+class VehicleDetailView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated, IsDriverAccount]
     serializer_class = VehicleSerializer
 
