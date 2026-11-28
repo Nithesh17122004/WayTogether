@@ -186,8 +186,11 @@ class AdminDocumentReviewView(APIView):
         serializer.is_valid(raise_exception=True)
 
         with transaction.atomic():
+            # Lock only the document row. Joining the nullable vehicle FK via
+            # select_related() can produce a LEFT OUTER JOIN that PostgreSQL
+            # does not allow in a SELECT ... FOR UPDATE statement.
             document = get_object_or_404(
-                VerificationDocument.objects.select_for_update().select_related("owner", "vehicle"),
+                VerificationDocument.objects.select_for_update(),
                 pk=document_id,
                 is_current=True,
             )
