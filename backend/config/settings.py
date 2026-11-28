@@ -198,6 +198,7 @@ FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o750
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "passenger_private": passenger_private_storage,
+    "driver_private": passenger_private_storage,
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 
