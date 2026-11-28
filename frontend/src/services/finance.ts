@@ -44,6 +44,10 @@ export type PassengerContributionRecord = {
   driver_name: string;
   seat_count: number;
   per_seat_amount: string;
+  driver_amount_per_seat: string;
+  platform_fee_per_seat: string;
+  driver_amount_total: string;
+  platform_fee_total: string;
   total_amount: string;
   currency: "INR";
   settlement_id: number;
