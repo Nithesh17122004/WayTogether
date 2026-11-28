@@ -227,10 +227,12 @@ class PassengerVerificationView(APIView):
                 if old_path not in new_paths:
                     transaction.on_commit(lambda storage=storage, path=old_path: storage.delete(path))
 
+        verification_data = PassengerVerificationStatusSerializer(verification).data
+        verification_data["uploads_enabled"] = settings.PRIVATE_MEDIA_STORAGE_READY
         return Response(
             {
                 "detail": "Your masked Aadhaar proof and passenger photo have been submitted for manual review.",
-                "verification": PassengerVerificationStatusSerializer(verification).data,
+                "verification": verification_data,
             },
             status=status.HTTP_201_CREATED if is_new else status.HTTP_200_OK,
         )
