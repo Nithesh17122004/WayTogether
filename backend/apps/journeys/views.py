@@ -362,3 +362,12 @@ class JourneyCancelView(APIView):
             "detail": "Journey cancelled. All pending requests and confirmed bookings have been cancelled.",
             "status": journey.status,
         })
+
+
+class UpcomingJourneyListView(generics.ListAPIView):
+    """Real published future routes for the signed-in marketplace dashboard."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = JourneySerializer
+
+    def get_queryset(self):
+        return _published_queryset().order_by("travel_date", "departure_time")[:30]
