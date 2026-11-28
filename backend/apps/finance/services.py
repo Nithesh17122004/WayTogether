@@ -118,8 +118,8 @@ def finalize_expense_settlement(*, journey_id, driver, data):
             recipient=booking.passenger,
             actor=driver,
             event_type=Notification.EventType.EXPENSE_FINALIZED,
-            title="Final expense contribution available",
-            body="The driver finalized this journey's eligible expenses. Your contribution is ready to review.",
+            title="Passenger payment available",
+            body="The actual journey-expense record is finalized. Your published passenger amount, including the 30% platform fee, is ready to review.",
             booking=booking,
             journey=journey,
         )
