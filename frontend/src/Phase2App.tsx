@@ -282,7 +282,7 @@ type DriverProfileRecord = {
 };
 type VehicleRecord = {
   id: number; registration_number: string; make: string; model: string;
-  manufacture_year: number; vehicle_category: string; vehicle_type: string; passenger_seats: number;
+  manufacture_year: number; colour: string; vehicle_category: string; vehicle_type: string; passenger_seats: number;
   private_use_attested: boolean; verification_status: string; verification_status_display: string;
 };
 type DriverDocumentRecord = {
@@ -578,7 +578,7 @@ function DriverVerificationPage() {
       make:vehicle.make,
       model:vehicle.model,
       manufacture_year:String(vehicle.manufacture_year),
-      colour:"",
+      colour:vehicle.colour ?? "",
       vehicle_category:vehicle.vehicle_category ?? "four_wheeler",
       vehicle_type:vehicle.vehicle_type,
       passenger_seats:String(vehicle.passenger_seats),
