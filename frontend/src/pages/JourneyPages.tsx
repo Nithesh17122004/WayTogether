@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowRight, BadgeCheck, CalendarDays, CarFront, Check, Clock3,
@@ -154,7 +154,7 @@ export function JourneySearchContent() {
     {!busy&&searched&&results.length>0&&<div className="wt-live-results">{results.map(journey=><JourneyResultCard key={journey.id} journey={journey}/>)}</div>}
     {!busy&&searched&&results.length===0&&<div className="wt-market-empty"><Search/><b>No journeys found for this route and date.</b><p>Try another date, increase your match radius or check nearby cities. Only currently published, approved driver/vehicle journeys appear here.</p></div>}
     {!searched&&<div className="wt-market-empty wt-market-empty-start"><CompassIcon/><b>Your route search starts here.</b><p>Choose both locations, your travel date and the number of seats. We'll match journeys near both ends of your route.</p></div>}
-    <p className="wt-market-footnote">*Illustrative expense contribution assumes all offered passenger seats are occupied and the driver shares the eligible estimated journey expenses. The final allocation is subject to the confirmed passenger count and the approved expense-sharing policy. WayTogether does not set a commercial fare here.</p>
+    <p className="wt-market-footnote">Each search result displays the driver's amount per passenger and the separately calculated 30% platform fee. Your total is shown before requesting a seat.</p>
   </div></main>;
 }
 
@@ -370,6 +370,10 @@ export function JourneyDetailContent() {
   const origin={latitude:Number(journey.origin_latitude),longitude:Number(journey.origin_longitude),label:journey.origin_name};
   const destination={latitude:Number(journey.destination_latitude),longitude:Number(journey.destination_longitude),label:journey.destination_name};
   const stops=journey.stops.map(stop=>({latitude:Number(stop.latitude),longitude:Number(stop.longitude),label:stop.location_name}));
+  const selectedSeatCount = Math.max(1, Number(seatsRequested) || 1);
+  const driverAmountForSeats = Number(journey.driver_amount_per_passenger) * selectedSeatCount;
+  const platformFeeForSeats = Number(journey.platform_fee_per_passenger) * selectedSeatCount;
+  const passengerTotalForSeats = Number(journey.passenger_total_per_passenger) * selectedSeatCount;
   return <main className="wt-page"><div className="wt-container wt-market-page">
     <div className="wt-breadcrumb"><Link to="/">Home</Link><span>›</span><Link to="/search">Find a journey</Link><span>›</span> Journey #{journey.id}</div>
     <div className="wt-page-heading"><div><span className="wt-eyebrow">PUBLISHED JOURNEY</span><h1>{journey.origin_name} <span className="wt-gradient-arrow">→</span> {journey.destination_name}</h1><p>Shared journey published by {journey.driver_name}.</p></div><span className="wt-live-status"><i/> {journey.status}</span></div>
@@ -399,9 +403,14 @@ export function JourneyDetailContent() {
         {journey.available_seats>0?<form className="wt-booking-request-form" onSubmit={submitBooking}>
           <h3>Request a seat</h3>
           <label className="wt-field"><span>Number of seats</span><select value={seatsRequested} onChange={e=>setSeatsRequested(e.target.value)}>{Array.from({length:journey.available_seats},(_,i)=>i+1).map(n=><option key={n} value={n}>{n} {n===1?"seat":"seats"}</option>)}</select></label>
+          <div className="wt-price-summary">
+            <div><span>Driver amount · {selectedSeatCount} seat(s)</span><b>{money(driverAmountForSeats)}</b></div>
+            <div><span>Platform fee · 30%</span><b>{money(platformFeeForSeats)}</b></div>
+            <div className="total"><span>Passenger pays</span><b>{money(passengerTotalForSeats)}</b></div>
+          </div>
           <label className="wt-field"><span>Message to driver (optional)</span><textarea rows={3} maxLength={500} value={requestMessage} onChange={e=>setRequestMessage(e.target.value)} placeholder="Add a brief pickup or travel note."/></label>
           <button className="wt-btn wt-btn-primary wt-full" type="submit" disabled={bookingBusy}>{bookingBusy?"Sending request…":"Request "+seatsRequested+" seat(s)"} <ArrowRight size={15}/></button>
-          <p className="wt-booking-request-note">Your request is pending until the driver approves it. Seats are not reserved and no money is collected at this point.</p>
+          <p className="wt-booking-request-note">Your request is pending until the driver approves it. Seats are not reserved and no payment is collected at this point. Total shown: {money(passengerTotalForSeats)}.</p>
           <Link to="/dashboard/passenger/bookings" className="wt-text-link">View my bookings <ArrowRight size={13}/></Link>
         </form>:<div className="wt-market-notice info">All passenger seats are currently confirmed. Check again later for availability.</div>}
         <p className="wt-market-footnote">The passenger total is the driver's published amount plus the separately disclosed 30% platform fee. It is charged per seat, so the amount does not change when additional passengers book. Payments and driver payouts remain disabled outside Test Mode.</p>
