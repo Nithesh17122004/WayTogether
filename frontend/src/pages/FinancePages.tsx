@@ -170,11 +170,11 @@ export function PassengerFinanceContent() {
   };
 
   return <div className="wt-market-dashboard-page">
-    <div className="wt-dash-heading"><div><span className="wt-eyebrow">PASSENGER WORKSPACE</span><h1>Expense contributions.</h1><p>Review your final eligible-expense share and pay securely using Razorpay Test Mode.</p></div><span className="wt-booking-status wt-booking-confirmed">Razorpay Test Mode</span></div>
+    <div className="wt-dash-heading"><div><span className="wt-eyebrow">PASSENGER WORKSPACE</span><h1>Passenger payments.</h1><p>Review your published per-seat amount and the separately disclosed 30% platform fee. Checkout is Razorpay Test Mode only.</p></div><span className="wt-booking-status wt-booking-confirmed">Razorpay Test Mode</span></div>
     <div className="wt-verification-intro"><ShieldCheck/><div><b>Test transactions only</b><small>Checkout uses Razorpay Test Mode credentials (rzp_test_). No real money is deducted. Live payment keys are rejected by the backend.</small></div></div>
     {error&&<FinanceNotice text={error} kind="error"/>}{notice&&<FinanceNotice text={notice} kind="info"/>}
     {loading?<div className="wt-market-empty"><RefreshCw className="wt-spin"/>Loading contribution records…</div>:
-      contributions.length===0?<div className="wt-market-empty"><Wallet/><b>No finalized contribution records.</b><p>After a driver submits actual eligible expenses for a completed journey, your contribution will appear here.</p><Link to="/dashboard/passenger/bookings" className="wt-btn wt-btn-primary">My bookings <ArrowRight size={14}/></Link></div>:
+      contributions.length===0?<div className="wt-market-empty"><Wallet/><b>No finalized contribution records.</b><p>After the driver closes the journey's actual-expense record, the published passenger total will appear here. It includes the driver amount and the 30% platform fee.</p><Link to="/dashboard/passenger/bookings" className="wt-btn wt-btn-primary">My bookings <ArrowRight size={14}/></Link></div>:
       <div className="wt-finance-list">{contributions.map(item=>{
         const payment=item.latest_payment;
         const status=payment?.status;
@@ -182,7 +182,7 @@ export function PassengerFinanceContent() {
         const badgeClass=isCaptured?"wt-booking-confirmed":status==="failed"?"wt-booking-declined":"wt-booking-pending";
         const badgeLabel=isCaptured?"Paid · Test Mode":status==="failed"?"Payment failed":status==="created"?"Order ready · Test Mode":"Payment not started";
         return <article className="wt-panel wt-finance-card" key={item.id}>
-          <div className="wt-booking-card-head"><span>Contribution #{item.id} · Booking #{item.booking_id}</span><span className={"wt-booking-status "+badgeClass}>{badgeLabel}</span></div>
+          <div className="wt-booking-card-head"><span>Passenger payment #{item.id} · Booking #{item.booking_id}</span><span className={"wt-booking-status "+badgeClass}>{badgeLabel}</span></div>
           <h2>{item.origin_name} <ArrowRight size={14}/> {item.destination_name}</h2>
           <div className="wt-booking-meta"><span><CalendarDays size={13}/>{dateLabel(item.travel_date)}</span><span>{item.seat_count} seat(s)</span><span>Driver: {item.driver_name}</span></div>
           <div className="wt-finance-share"><span>Passenger total · {item.seat_count} seat(s)</span><b>{money(item.total_amount)}</b><small>Driver amount: {money(item.driver_amount_total)} · Platform fee (30%): {money(item.platform_fee_total)} · Per seat: {money(item.per_seat_amount)}</small></div>
