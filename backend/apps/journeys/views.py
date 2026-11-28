@@ -59,6 +59,12 @@ def _best_matching_segment(journey, origin_lat, origin_lon, destination_lat, des
 
 
 def _published_queryset():
+    """
+    One shared eligibility rule for public marketplace lists and journey details.
+    Keep time-of-departure checks out of this base queryset so a user who opened
+    a journey just before departure can still read its details afterwards.
+    New booking requests remain protected by the booking service's departure check.
+    """
     return (
         Journey.objects.filter(
             status=Journey.Status.PUBLISHED,
@@ -76,6 +82,7 @@ def _published_queryset():
             "stops",
             Prefetch("bookings", queryset=Booking.objects.filter(status=Booking.Status.CONFIRMED), to_attr="_confirmed_bookings"),
         )
+        .distinct()
     )
 
 
@@ -226,6 +233,10 @@ class JourneyDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, pk):
+        # Fetch the record first so its owner can still view their own draft,
+        # cancelled or completed journey. Public access then uses exactly the
+        # same approved-driver/vehicle/document eligibility filter as the
+        # upcoming dashboard and marketplace search.
         journey = get_object_or_404(
             Journey.objects.select_related("driver", "vehicle", "driver__driver_profile")
             .prefetch_related(
@@ -234,28 +245,14 @@ class JourneyDetailView(APIView):
             ),
             pk=pk,
         )
+        is_owner = request.user.is_authenticated and journey.driver_id == request.user.id
         if journey.status == Journey.Status.PUBLISHED:
-            is_visible = (
-                journey.driver.is_active
-                and journey.driver.is_email_verified
-                and getattr(journey.driver, "driver_profile", None) is not None
-                and journey.driver.driver_profile.verification_status == DriverProfile.VerificationStatus.APPROVED
-                and VerificationDocument.objects.filter(
-                    owner=journey.driver,
-                    document_type=VerificationDocument.DocumentType.DRIVER_PHOTO,
-                    review_status=VerificationDocument.ReviewStatus.APPROVED,
-                    is_current=True,
-                ).exists()
-                and journey.vehicle.verification_status == Vehicle.VerificationStatus.APPROVED
-                and journey.travel_date >= timezone.localdate()
-                and (
-                    journey.travel_date > timezone.localdate()
-                    or journey.departure_time > timezone.localtime().time().replace(tzinfo=None)
-                )
-            )
-            if not is_visible:
-                return Response({"detail": "Journey not found."}, status=404)
-        elif not request.user.is_authenticated or journey.driver_id != request.user.id:
+            public_journey = _published_queryset().filter(pk=pk).first()
+            if public_journey is None and not is_owner:
+                return Response({"detail": "This journey is not currently available to the public."}, status=404)
+            if public_journey is not None:
+                journey = public_journey
+        elif not is_owner:
             return Response({"detail": "Journey not found."}, status=404)
         return Response(JourneySerializer(journey, context={"request": request}).data)
 
