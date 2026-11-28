@@ -1,3 +1,5 @@
+from django.contrib.admin.models import LogEntry
+from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import User
@@ -77,3 +79,45 @@ class AdminWorkspaceAPITests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["total_count"], 0)
         self.assertIn("does not indicate money collected", response.data["notice"])
+
+
+    @override_settings(ADMIN_DATABASE_CLEANUP_ENABLED=True)
+    def test_browser_database_cleanup_is_previewed_confirmed_and_one_time(self):
+        self.client.force_authenticate(self.admin)
+
+        preview = self.client.get("/api/v1/admin/database-cleanup/")
+        self.assertEqual(preview.status_code, 200)
+        self.assertTrue(preview.data["dry_run"])
+        self.assertTrue(User.objects.filter(pk=self.passenger.pk).exists())
+
+        rejected = self.client.post(
+            "/api/v1/admin/database-cleanup/",
+            {
+                "confirmation": "wrong phrase",
+                "backup_acknowledged": True,
+                "preview_token": preview.data["preview_token"],
+            },
+            format="json",
+        )
+        self.assertEqual(rejected.status_code, 400)
+        self.assertTrue(User.objects.filter(pk=self.passenger.pk).exists())
+
+        executed = self.client.post(
+            "/api/v1/admin/database-cleanup/",
+            {
+                "confirmation": preview.data["confirmation_phrase"],
+                "backup_acknowledged": True,
+                "preview_token": preview.data["preview_token"],
+            },
+            format="json",
+        )
+        self.assertEqual(executed.status_code, 200)
+        self.assertTrue(executed.data["completed"])
+        self.assertTrue(User.objects.filter(pk=self.admin.pk).exists())
+        self.assertFalse(User.objects.filter(pk=self.passenger.pk).exists())
+        self.assertTrue(LogEntry.objects.filter(
+            change_message="waytogether_database_cleanup_v1"
+        ).exists())
+
+        repeated = self.client.get("/api/v1/admin/database-cleanup/")
+        self.assertTrue(repeated.data["completed"])
