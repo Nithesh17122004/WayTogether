@@ -144,7 +144,7 @@ export async function launchRazorpayCheckout(args: {
     amount: args.amount,
     currency: args.currency,
     name: "WayTogether",
-    description: "Shared journey expense contribution · Test Mode",
+    description: "WayTogether passenger amount including platform fee · Test Mode",
     order_id: args.orderId,
     prefill: { name: args.customerName, email: args.customerEmail },
     theme: { color: "#286fff" },
