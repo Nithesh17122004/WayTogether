@@ -70,7 +70,7 @@ class MyContributionListView(generics.ListAPIView):
             .select_related(
                 "booking", "booking__journey", "booking__journey__driver", "settlement",
             )
-            .prefetch_related("sandbox_payments")
+            .prefetch_related("razorpay_payments")
             .order_by("-created_at")
         )
 
