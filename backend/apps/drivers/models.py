@@ -58,7 +58,13 @@ class DriverProfile(models.Model):
 
 
 class Vehicle(models.Model):
+    class VehicleCategory(models.TextChoices):
+        TWO_WHEELER = "two_wheeler", "Two-wheeler"
+        FOUR_WHEELER = "four_wheeler", "Four-wheeler"
+
     class VehicleType(models.TextChoices):
+        MOTORCYCLE = "motorcycle", "Motorcycle"
+        SCOOTER = "scooter", "Scooter"
         HATCHBACK = "hatchback", "Hatchback"
         SEDAN = "sedan", "Sedan"
         SUV = "suv", "SUV"
@@ -84,6 +90,11 @@ class Vehicle(models.Model):
         validators=[MinValueValidator(1980), MaxValueValidator(2100)]
     )
     colour = models.CharField(max_length=40, blank=True)
+    vehicle_category = models.CharField(
+        max_length=16,
+        choices=VehicleCategory.choices,
+        default=VehicleCategory.FOUR_WHEELER,
+    )
     vehicle_type = models.CharField(max_length=12, choices=VehicleType.choices)
     passenger_seats = models.PositiveSmallIntegerField(
         default=3,
@@ -100,6 +111,21 @@ class Vehicle(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+
+        two_wheeler_types = {self.VehicleType.MOTORCYCLE, self.VehicleType.SCOOTER, self.VehicleType.OTHER}
+        four_wheeler_types = {
+            self.VehicleType.HATCHBACK, self.VehicleType.SEDAN, self.VehicleType.SUV,
+            self.VehicleType.MUV, self.VehicleType.OTHER,
+        }
+        allowed = two_wheeler_types if self.vehicle_category == self.VehicleCategory.TWO_WHEELER else four_wheeler_types
+        if self.vehicle_type not in allowed:
+            raise ValidationError({"vehicle_type": "Choose a vehicle subtype that matches its wheel category."})
+        if self.vehicle_category == self.VehicleCategory.TWO_WHEELER and self.passenger_seats > 1:
+            raise ValidationError({"passenger_seats": "A two-wheeler can offer one passenger seat."})
 
     def save(self, *args, **kwargs):
         self.registration_number = "".join(self.registration_number.upper().split())
