@@ -17,6 +17,10 @@ def make_pdf(name="test-document.pdf", content=PDF_BYTES, content_type="applicat
     return SimpleUploadedFile(name, content, content_type=content_type)
 
 
+def make_jpg(name="driver-photo.jpg"):
+    return SimpleUploadedFile(name, JPEG_BYTES, content_type="image/jpeg")
+
+
 class DriverVerificationApiTests(APITestCase):
     def create_driver(self, email="driver@example.com", phone="+919876543210", role=User.Role.DRIVER):
         return User.objects.create_user(
@@ -43,9 +47,10 @@ class DriverVerificationApiTests(APITestCase):
         )
 
     def upload_document(self, client, document_type, vehicle=None, expiry_date=None, name=None):
+        uploaded = make_jpg(name or "driver-photo.jpg") if document_type == "driver_photo" else make_pdf(name or f"{document_type}.pdf")
         payload = {
             "document_type": document_type,
-            "file": make_pdf(name or f"{document_type}.pdf"),
+            "file": uploaded,
         }
         if vehicle:
             payload["vehicle"] = str(vehicle.pk)
@@ -180,7 +185,7 @@ class DriverVerificationApiTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(len(response.data["missing_documents"]), 4)
+        self.assertEqual(len(response.data["missing_documents"]), 5)
 
     def test_documents_must_be_admin_approved_before_driver_is_approved(self):
         driver = self.create_driver()
@@ -193,6 +198,7 @@ class DriverVerificationApiTests(APITestCase):
         self.client.force_authenticate(driver)
         uploads = [
             self.upload_document(self.client, "driver_license"),
+            self.upload_document(self.client, "driver_photo"),
             self.upload_document(self.client, "vehicle_registration", vehicle),
             self.upload_document(self.client, "insurance", vehicle, date.today() + timedelta(days=365)),
             self.upload_document(self.client, "vehicle_photo", vehicle),
