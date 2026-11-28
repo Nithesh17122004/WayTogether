@@ -7,7 +7,7 @@ class IsJourneyOwner(BasePermission):
 
 
 class IsDriverAccount(BasePermission):
-    message = "A registered Driver account with a verified email and mobile number is required."
+    message = "An active Driver account with a verified email is required."
 
     def has_permission(self, request, view):
         user = request.user
@@ -15,7 +15,6 @@ class IsDriverAccount(BasePermission):
             user and user.is_authenticated and user.is_active
             and user.role == "driver"
             and user.is_email_verified
-            and user.phone
         )
 
 
