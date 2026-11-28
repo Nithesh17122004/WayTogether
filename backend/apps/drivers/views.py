@@ -231,10 +231,16 @@ class PublicDriverPhotoView(APIView):
             user__is_active=True,
             user__is_email_verified=True,
         )
-        if not profile.profile_photo:
+        photo = VerificationDocument.objects.filter(
+            owner_id=driver_id,
+            document_type=VerificationDocument.DocumentType.DRIVER_PHOTO,
+            review_status=VerificationDocument.ReviewStatus.APPROVED,
+            is_current=True,
+        ).first()
+        if not photo or not photo.file:
             raise Http404
 
-        # Only serve a photo while the approved driver has a published journey.
+        # Only serve a verified driver's face photo while they have a published journey.
         from apps.journeys.models import Journey
         if not Journey.objects.filter(
             driver_id=driver_id,
@@ -244,11 +250,11 @@ class PublicDriverPhotoView(APIView):
             raise Http404
 
         try:
-            opened = profile.profile_photo.open("rb")
+            opened = photo.file.open("rb")
         except (FileNotFoundError, OSError, ValueError):
             raise Http404("The driver photo is unavailable.")
 
-        content_type = mimetypes.guess_type(profile.profile_photo.name)[0] or "application/octet-stream"
+        content_type = mimetypes.guess_type(photo.file.name)[0] or "application/octet-stream"
         response = FileResponse(opened, as_attachment=False, content_type=content_type)
         response["Cache-Control"] = "public, max-age=300"
         response["X-Content-Type-Options"] = "nosniff"
