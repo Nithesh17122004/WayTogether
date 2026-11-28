@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     AdminBookingListView,
+    AdminDatabaseCleanupView,
     AdminExpenseLedgerView,
     AdminJourneyListView,
     AdminOverviewView,
@@ -16,4 +17,5 @@ urlpatterns = [
     path("admin/journeys/", AdminJourneyListView.as_view(), name="admin-journey-list"),
     path("admin/bookings/", AdminBookingListView.as_view(), name="admin-booking-list"),
     path("admin/expense-ledger/", AdminExpenseLedgerView.as_view(), name="admin-expense-ledger"),
+    path("admin/database-cleanup/", AdminDatabaseCleanupView.as_view(), name="admin-database-cleanup"),
 ]
