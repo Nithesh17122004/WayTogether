@@ -125,8 +125,8 @@ function AuthPage({ mode }: { mode: AuthMode }) {
     event.preventDefault();
     setBusy(true); setError(""); setNotice("");
     const normalizedPhone = phone.trim();
-    if (normalizedPhone && !/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
-      setError("Enter the mobile number in international format, such as +919876543210, or leave it blank.");
+    if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
+      setError("A mobile number is required. Use international format, for example +919876543210.");
       setBusy(false);
       return;
     }
@@ -136,7 +136,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
         body: JSON.stringify({
           full_name: fullName.trim(),
           email: email.trim().toLowerCase(),
-          phone: normalizedPhone || null,
+          phone: normalizedPhone,
           password,
           role,
           accepted_terms: acceptedTerms,
@@ -236,7 +236,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
       <Eyebrow>{isRegister ? "CREATE YOUR ACCOUNT" : "ACCOUNT ACCESS"}</Eyebrow><h2>{isRegister ? "Create your account" : "Sign in to WayTogether"}</h2><p>{isRegister ? "A few details to get started." : "Enter your details to access your account."}</p>
       {isRegister && <label className="wt-field"><span>Full name</span><input value={fullName} onChange={e=>setFullName(e.target.value)} placeholder="Your full name" autoComplete="name" required/></label>}
       <label className="wt-field"><span>Email address</span><input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" autoComplete="email" required/></label>
-      {isRegister && <><label className="wt-field"><span>Mobile number {role==="driver"?<small>(required for driver contact)</small>:<small>(optional)</small>}</span><input value={phone} onChange={e=>setPhone(e.target.value.replace(/[^0-9+]/g,""))} type="tel" inputMode="tel" placeholder="+919876543210" autoComplete="tel" maxLength={16} required={role==="driver"}/><small className="wt-field-hint">{role==="driver"?"Required as a contact number for confirmed, paid bookings. No mobile OTP or phone verification is required.":"Optional contact information only. No mobile OTP or phone verification is required."}</small></label><label className="wt-field"><span>Account type</span><select value={role} onChange={e=>setRole(e.target.value as "passenger"|"driver")}><option value="passenger">Passenger</option><option value="driver">Driver</option></select></label></>}
+      {isRegister && <><label className="wt-field"><span>Mobile number <small>(required)</small></span><input value={phone} onChange={e=>setPhone(e.target.value.replace(/[^0-9+]/g,""))} type="tel" inputMode="tel" placeholder="+919876543210" autoComplete="tel" maxLength={16} required/><small className="wt-field-hint">Required for all passengers and drivers. This registered number is shared with the other booking participant only after a confirmed booking has a successful, verified payment. No mobile OTP is currently used.</small></label><label className="wt-field"><span>Account type</span><select value={role} onChange={e=>setRole(e.target.value as "passenger"|"driver")}><option value="passenger">Passenger</option><option value="driver">Driver</option></select></label></>}
       <label className="wt-field"><span>Password</span><input value={password} onChange={e=>setPassword(e.target.value)} type="password" minLength={8} placeholder="At least 8 characters" autoComplete={isRegister ? "new-password" : "current-password"} required/></label>
       {isRegister && <label className="wt-terms-check"><input type="checkbox" checked={acceptedTerms} onChange={e=>setAcceptedTerms(e.target.checked)} required/><span>I accept the WayTogether terms and privacy policy.</span></label>}
       {error && <p className="wt-auth-error" role="alert">{error}</p>}{notice && <p className="wt-inline-notice" role="status">{notice}</p>}
@@ -325,29 +325,77 @@ type AdminPassengerKycRecord = {
 };
 
 function PassengerVerificationPage() {
+  const navigate = useNavigate();
   const [verification,setVerification] = useState<PassengerKycStatus>({status:"not_submitted",uploads_enabled:false});
   const [aadhaarFile,setAadhaarFile] = useState<File|null>(null);
   const [photoFile,setPhotoFile] = useState<File|null>(null);
   const [consent,setConsent] = useState(false);
+  const [phone,setPhone] = useState("");
+  const [phoneSaved,setPhoneSaved] = useState(false);
   const [loading,setLoading] = useState(true);
   const [busy,setBusy] = useState(false);
+  const [phoneBusy,setPhoneBusy] = useState(false);
   const [error,setError] = useState("");
   const [notice,setNotice] = useState("");
 
   const load = async () => {
     setLoading(true); setError("");
+    if (!hasAuthSession()) {
+      navigate("/login", { replace: true });
+      setLoading(false);
+      return;
+    }
     try {
-      setVerification(await apiRequest<PassengerKycStatus>("/auth/passenger-verification/",{},true));
+      const [statusData,userData] = await Promise.all([
+        apiRequest<PassengerKycStatus>("/auth/passenger-verification/",{},true),
+        apiRequest<{phone:string|null}>("/auth/me/",{},true),
+      ]);
+      setVerification(statusData);
+      setPhone(userData.phone ?? "");
+      setPhoneSaved(Boolean(userData.phone));
     } catch(err) {
-      setError(err instanceof Error?err.message:"Could not load passenger identity status.");
+      const message=err instanceof Error?err.message:"Could not load passenger identity status.";
+      setError(message);
+      if(message.toLowerCase().includes("session has expired")) navigate("/login",{replace:true});
     } finally { setLoading(false); }
   };
   useEffect(()=>{void load();},[]);
 
+  const savePhone = async (event:FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalized=phone.trim();
+    if(!/^\\+[1-9]\\d{7,14}$/.test(normalized)) {
+      setError("Enter your mobile number in international format, such as +919876543210.");
+      return;
+    }
+    setPhoneBusy(true); setError(""); setNotice("");
+    try {
+      const result=await apiRequest<{phone:string|null}>("/auth/me/",{
+        method:"PATCH",body:JSON.stringify({phone:normalized}),
+      },true);
+      setPhone(result.phone ?? "");
+      setPhoneSaved(Boolean(result.phone));
+      setNotice("Registered mobile number saved.");
+    } catch(err) { setError(err instanceof Error?err.message:"Could not save your mobile number."); }
+    finally { setPhoneBusy(false); }
+  };
+
   const submit = async (event:FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if(!hasAuthSession()) {
+      navigate("/login",{replace:true});
+      return;
+    }
+    if(!phoneSaved) {
+      setError("Save your registered mobile number before submitting identity verification.");
+      return;
+    }
     if(!aadhaarFile||!photoFile||!consent) {
       setError("Choose both documents and accept the identity-verification consent.");
+      return;
+    }
+    if(!verification.uploads_enabled) {
+      setError("Private persistent document storage is not configured yet. Your documents have not been submitted.");
       return;
     }
     setBusy(true); setError(""); setNotice("");
@@ -367,14 +415,25 @@ function PassengerVerificationPage() {
       const a = document.getElementById("wt-passenger-aadhaar") as HTMLInputElement|null;
       const p = document.getElementById("wt-passenger-photo") as HTMLInputElement|null;
       if(a)a.value=""; if(p)p.value="";
-    } catch(err) { setError(err instanceof Error?err.message:"Could not submit verification."); }
-    finally { setBusy(false); }
+    } catch(err) {
+      const message=err instanceof Error?err.message:"Could not submit verification.";
+      setError(message);
+      if(message.toLowerCase().includes("session has expired")) navigate("/login",{replace:true});
+    } finally { setBusy(false); }
   };
 
   return <DashboardLayout role="Passenger">
     <div className="wt-dash-heading"><div><Eyebrow>PASSENGER IDENTITY</Eyebrow><h1>Verify your passenger profile.</h1><p>Submit your identity proof and a clear profile photo for manual review.</p></div><StatusPill status={verification.status}/></div>
     <div className="wt-verification-intro"><ShieldCheck/><div><b>Private manual verification</b><small>Files are private and available only to you and authorised administrators. Do not upload a full unmasked Aadhaar number or biometric data.</small></div><StatusPill status={verification.status}/></div>
     {error&&<p className="wt-auth-error" role="alert">{error}</p>}{notice&&<p className="wt-inline-notice" role="status">{notice}</p>}
+    <section className="wt-panel wt-verification-card">
+      <div className="wt-panel-heading"><div><h2>Registered mobile number</h2><p>Required for all passenger accounts and shared only with the other participant after successful payment.</p></div>{phoneSaved?<StatusPill status="approved"/>:<StatusPill status="pending"/>}</div>
+      <form className="wt-profile-fields" onSubmit={savePhone}>
+        <label className="wt-field wt-span-2"><span>Mobile number</span><input value={phone} onChange={e=>{setPhone(e.target.value.replace(/[^0-9+]/g,""));setPhoneSaved(false);}} type="tel" inputMode="tel" maxLength={16} placeholder="+919876543210" required/><small>Use international format. No phone OTP is currently used.</small></label>
+        <button className="wt-btn wt-btn-outline" type="submit" disabled={phoneBusy||!/^\\+[1-9]\\d{7,14}$/.test(phone.trim())}>{phoneBusy?"Saving…":phoneSaved?"Update mobile number":"Save mobile number"}</button>
+      </form>
+    </section>
+    {error&&<p className="wt-auth-error" role="alert">{error}</p>}
     {!loading&&!verification.uploads_enabled&&<div className="wt-market-notice info" role="status"><b>Identity uploads are temporarily unavailable.</b> WayTogether must finish configuring private persistent document storage before accepting identity files. Your selected documents have not been submitted or saved. Please do not retry until this notice disappears.</div>}
     {loading?<div className="wt-panel wt-verification-loading">Loading your verification status…</div>:<>
       {verification.review_note&&<div className="wt-market-notice info">Administrator note: {verification.review_note}</div>}
@@ -384,7 +443,7 @@ function PassengerVerificationPage() {
           <label className="wt-field wt-file-field"><span>Masked Aadhaar proof (PDF, JPG or PNG)</span><input id="wt-passenger-aadhaar" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>setAadhaarFile(e.target.files?.[0]??null)} required/><small>{aadhaarFile?.name??"Upload a copy with the first eight Aadhaar digits hidden"}</small></label>
           <label className="wt-field wt-file-field"><span>Passenger photo (JPG or PNG)</span><input id="wt-passenger-photo" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={e=>setPhotoFile(e.target.files?.[0]??null)} required/><small>{photoFile?.name??"Upload a recent, clear face photo"}</small></label>
           <label className="wt-private-attest"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>I consent to WayTogether using these documents for passenger identity verification, restricting access to authorised reviewers, and retaining them only as required for this verification purpose.</span></label>
-          <button className="wt-btn wt-btn-primary" disabled={busy||!consent||!verification.uploads_enabled}>{busy?"Submitting…":"Submit for manual verification"} <ArrowRight size={15}/></button>
+          <button className="wt-btn wt-btn-primary" disabled={busy||!consent||!verification.uploads_enabled||!phoneSaved}>{busy?"Submitting…":"Submit for manual verification"} <ArrowRight size={15}/></button>
         </form>
         <p className="wt-legal-small">Only upload a masked Aadhaar document with the first eight digits redacted. Never enter a 12-digit Aadhaar number into the app. You can resubmit if a reviewer rejects the documents.</p>
       </section>
