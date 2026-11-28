@@ -76,3 +76,34 @@ export function getAdminExpenseLedger() {
     "/admin/expense-ledger/", {}, true,
   );
 }
+
+
+export type AdminCleanupItem = { label: string; count: number };
+export type AdminCleanupPreview = {
+  completed: boolean;
+  dry_run?: boolean;
+  summary?: AdminCleanupItem[];
+  preview_token?: string;
+  token_expires_in_seconds?: number;
+  output?: string;
+  confirmation_phrase?: string;
+  backup_acknowledgement?: string;
+  preserves?: string[];
+  detail?: string;
+};
+
+export function getAdminDatabaseCleanupPreview() {
+  return apiRequest<AdminCleanupPreview>("/admin/database-cleanup/", {}, true);
+}
+
+export function executeAdminDatabaseCleanup(payload: {
+  confirmation: string;
+  backup_acknowledged: boolean;
+  preview_token: string;
+}) {
+  return apiRequest<AdminCleanupPreview>(
+    "/admin/database-cleanup/",
+    { method: "POST", body: JSON.stringify(payload) },
+    true,
+  );
+}

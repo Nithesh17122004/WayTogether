@@ -266,5 +266,7 @@ MAPS_USER_AGENT = os.getenv(
 RAZORPAY_TEST_MODE = _env_bool("RAZORPAY_TEST_MODE", True)
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "").strip()
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+# Browser-based destructive cleanup is disabled unless explicitly enabled for the one-time admin action.
+ADMIN_DATABASE_CLEANUP_ENABLED = _env_bool("ADMIN_DATABASE_CLEANUP_ENABLED", False)
 FINANCE_SANDBOX_ENABLED = False
 LIVE_PAYMENTS_ENABLED = False
