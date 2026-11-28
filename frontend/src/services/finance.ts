@@ -133,7 +133,9 @@ export async function launchRazorpayCheckout(args: {
   onDismiss: () => void;
 }) {
   await ensureRazorpayCheckout();
-  const checkout = new window.Razorpay!({
+  const RazorpayConstructor = window.Razorpay;
+  if (!RazorpayConstructor) throw new Error("Razorpay Checkout is unavailable in this browser.");
+  const checkout = new RazorpayConstructor({
     key: args.keyId,
     amount: args.amount,
     currency: args.currency,
