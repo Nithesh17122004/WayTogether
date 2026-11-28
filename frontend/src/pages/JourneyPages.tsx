@@ -191,7 +191,8 @@ export function JourneyPublishContent() {
 
   const chosenVehicle = vehicles.find(vehicle=>String(vehicle.id)===vehicleId);
   const driverAmount = Number(driverAmountPerPassenger || 0);
-  const platformFee = Math.round((driverAmount * 0.30 + Number.EPSILON) * 100) / 100;
+  const driverAmountPaise = Math.round(driverAmount * 100);
+  const platformFee = Math.floor((driverAmountPaise * 30 + 50) / 100) / 100;
   const passengerTotal = driverAmount + platformFee;
   const availableSeats = chosenVehicle?.passenger_seats ?? 0;
 
@@ -221,7 +222,7 @@ export function JourneyPublishContent() {
     if(!origin||!destination){setError("Search and select both the origin and destination.");return;}
     if(!vehicleId||!chosenVehicle){setError("Register a vehicle before creating a journey.");return;}
     if(Number(seats)<1||Number(seats)>Math.min(8,availableSeats)){setError("Passenger seats cannot exceed the approved vehicle's registered capacity.");return;}
-    if(!attested){setError("Confirm that you independently planned this journey and are sharing eligible expenses only.");return;}
+    if(!attested){setError("Confirm that you independently planned this journey and understand the disclosed per-passenger pricing.");return;}
     if(!Number.isFinite(driverAmount)||driverAmount<=0){setError("Enter a positive driver amount per passenger.");return;}
     if(stops.some(stop=>!stop.display_name)){setError("Choose a location for each intermediate stop or remove the empty stop.");return;}
 
@@ -261,7 +262,7 @@ export function JourneyPublishContent() {
 
   return <main className="wt-page"><div className="wt-container wt-market-page wt-publish-page">
     <div className="wt-breadcrumb"><Link to="/">Home</Link><span>›</span><Link to="/dashboard/driver">Driver workspace</Link><span>›</span> Share a journey</div>
-    <div className="wt-page-heading"><div><span className="wt-eyebrow">FOR VERIFIED DRIVERS</span><h1>Share the journey you already planned.</h1><p>Offer available seats on a privately planned trip and share eligible journey expenses.</p></div><Link to="/driver/verification" className="wt-btn wt-btn-outline"><FileCheck2 size={15}/> Driver verification</Link></div>
+    <div className="wt-page-heading"><div><span className="wt-eyebrow">FOR VERIFIED DRIVERS</span><h1>Share the journey you already planned.</h1><p>Set a clear per-passenger amount and show the 30% platform fee before anyone books.</p></div><Link to="/driver/verification" className="wt-btn wt-btn-outline"><FileCheck2 size={15}/> Driver verification</Link></div>
     {error&&<PageNotice kind="error">{error}</PageNotice>}{notice&&<PageNotice kind="success">{notice}</PageNotice>}
     <form className="wt-publish-layout" onSubmit={submit}>
       <div className="wt-publish-main">
@@ -305,7 +306,7 @@ export function JourneyPublishContent() {
         <section className="wt-panel wt-publish-section">
           <div className="wt-publish-section-title"><span>04</span><div><h2>Journey details</h2><p>Help passengers understand your trip.</p></div></div>
           <label className="wt-field"><span>Additional information (optional)</span><textarea rows={3} maxLength={1000} value={description} onChange={e=>setDescription(e.target.value)} placeholder="Share useful details about your planned journey, meeting points or luggage space."/></label>
-          <label className="wt-independent-attest"><input type="checkbox" checked={attested} onChange={e=>setAttested(e.target.checked)}/><span><b>I independently planned this journey and will make it even if no passengers join.</b><small>I confirm this is a private journey and passenger contributions are intended only to share eligible journey expenses. I am not creating this trip to earn income from passenger transport.</small></span></label>
+          <label className="wt-independent-attest"><input type="checkbox" checked={attested} onChange={e=>setAttested(e.target.checked)}/><span><b>I independently planned this journey and will make it even if no passengers join.</b><small>I have reviewed the driver's per-passenger amount and the separate 30% platform fee. I will not create a journey solely because a passenger has requested a ride.</small></span></label>
         </section>
       </div>
       <aside className="wt-panel wt-publish-summary"><span className="wt-eyebrow">PUBLISH CHECKLIST</span><h3>Ready to share?</h3><ul>
@@ -388,7 +389,7 @@ export function JourneyDetailContent() {
         {journey.expense_note&&<div className="wt-expense-note"><b>Expense note</b><p>{journey.expense_note}</p></div>}
       </section>
       <aside className="wt-panel wt-live-booking-panel">
-        <span className="wt-eyebrow">ESTIMATED EXPENSE SHARE</span>
+        <span className="wt-eyebrow">PASSENGER PRICE BREAKDOWN</span>
         <strong>{money(journey.passenger_total_per_passenger)}</strong>
         <small>Passenger pays per seat · includes 30% platform fee</small>
         <div className="wt-summary-line"><span>Driver amount per seat</span><b>{money(journey.driver_amount_per_passenger)}</b></div>
