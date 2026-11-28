@@ -416,8 +416,13 @@ class AdminDatabaseCleanupView(APIView):
 
         try:
             with transaction.atomic():
-                # Serialise executions by locking the initiating administrator row.
-                User.objects.select_for_update().get(pk=request.user.pk)
+                # All administrator requests lock the same surviving admin row,
+                # preventing two different admins from starting the one-time cleanup together.
+                lock_admin = User.objects.select_for_update().filter(
+                    Q(role="admin") | Q(is_staff=True) | Q(is_superuser=True)
+                ).order_by("pk").first()
+                if lock_admin is None:
+                    raise CommandError("No administrator account is available; cleanup was cancelled.")
                 if self._already_completed():
                     return Response({
                         "detail": "The one-time cleanup has already been completed.",
