@@ -240,7 +240,12 @@ class JourneyDetailView(APIView):
                 and journey.driver.is_email_verified
                 and getattr(journey.driver, "driver_profile", None) is not None
                 and journey.driver.driver_profile.verification_status == DriverProfile.VerificationStatus.APPROVED
-                and bool(journey.driver.driver_profile.profile_photo)
+                and VerificationDocument.objects.filter(
+                    owner=journey.driver,
+                    document_type=VerificationDocument.DocumentType.DRIVER_PHOTO,
+                    review_status=VerificationDocument.ReviewStatus.APPROVED,
+                    is_current=True,
+                ).exists()
                 and journey.vehicle.verification_status == Vehicle.VerificationStatus.APPROVED
                 and journey.travel_date >= timezone.localdate()
                 and (
@@ -313,8 +318,8 @@ class JourneyPublishView(APIView):
                 return Response({"detail": "This departure time has already passed. Update the draft to a future departure time."}, status=400)
             if not journey.independently_planned or not journey.expenses_only:
                 return Response({"detail": "The journey must meet WayTogether's independent journey and expense-sharing rules."}, status=400)
-            if journey.estimated_total_expenses <= Decimal("0.00"):
-                return Response({"detail": "Enter the estimated eligible journey expenses before publishing."}, status=400)
+            if journey.driver_amount_per_passenger <= Decimal("0.00"):
+                return Response({"detail": "Enter the driver amount per passenger before publishing."}, status=400)
 
             journey.status = Journey.Status.PUBLISHED
             journey.published_at = timezone.now()
