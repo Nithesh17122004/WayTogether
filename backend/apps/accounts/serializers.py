@@ -89,13 +89,22 @@ class RegisterSerializer(serializers.Serializer):
 
 
 class CurrentUserPhoneSerializer(serializers.Serializer):
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     phone = serializers.RegexField(
         regex=r"^\+[1-9]\d{7,14}$",
         max_length=16,
         error_messages={"invalid": "Use international phone format, for example +919876543210."},
     )
 
+    def validate_first_name(self, value):
+        return value.strip()
+
+    def validate_last_name(self, value):
+        return value.strip()
+
     def validate_phone(self, value):
+        value = value.strip()
         user = self.context["request"].user
         if User.objects.filter(phone=value).exclude(pk=user.pk).exists():
             raise serializers.ValidationError("This mobile number is already linked to another account.")
