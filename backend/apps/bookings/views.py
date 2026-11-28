@@ -122,6 +122,7 @@ class PassengerBookingCreateView(APIView):
                     seats_requested=seats_requested,
                     request_message=request_message,
                 )
+                refresh_contribution_estimates(journey)
                 from apps.trust.services import notify
                 notify(
                     recipient=journey.driver,
