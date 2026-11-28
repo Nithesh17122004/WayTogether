@@ -1,8 +1,14 @@
 from datetime import timedelta
 from decimal import Decimal
+from io import StringIO
 
+from django.conf import settings
+from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q, Sum
+from django.core import signing
+from django.core.management import CommandError, call_command
+from django.db import transaction
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 from rest_framework import status
@@ -300,4 +306,139 @@ class AdminExpenseLedgerView(APIView):
                 for settlement in queryset[:100]
             ],
             "notice": "Read-only expense allocation records. This ledger does not indicate money collected, paid out or transferred.",
+        })
+
+
+
+class AdminDatabaseCleanupView(APIView):
+    """One-time, admin-only browser runner for the guarded database cleanup command."""
+
+    permission_classes = [IsAdminUser]
+    throttle_scope = "admin_read"
+
+    CONFIRMATION_PHRASE = "DELETE NON-ADMIN AND NON-UPCOMING DATA"
+    BACKUP_ACKNOWLEDGEMENT = "I UNDERSTAND THIS ACTION IS IRREVERSIBLE"
+    TOKEN_SALT = "waytogether.admin-database-cleanup.preview.v1"
+    COMPLETION_MARKER = "waytogether_database_cleanup_v1"
+
+    def _ensure_enabled(self):
+        if not getattr(settings, "ADMIN_DATABASE_CLEANUP_ENABLED", False):
+            return Response({"detail": "Browser database cleanup is currently disabled."}, status=404)
+        return None
+
+    def _already_completed(self):
+        return LogEntry.objects.filter(change_message=self.COMPLETION_MARKER).exists()
+
+    def _run_command(self, *, execute=False):
+        output = StringIO()
+        args = ["--execute"] if execute else []
+        call_command("cleanup_waytogether_data", *args, stdout=output)
+        raw_output = output.getvalue()
+        summary = []
+        for line in raw_output.splitlines():
+            if ": " not in line:
+                continue
+            label, _, value = line.rpartition(": ")
+            try:
+                count = int(value.strip())
+            except ValueError:
+                continue
+            summary.append({"label": label.strip(), "count": count})
+        return raw_output, summary
+
+    def get(self, request):
+        disabled = self._ensure_enabled()
+        if disabled:
+            return disabled
+        if self._already_completed():
+            return Response({
+                "completed": True,
+                "detail": "The one-time WayTogether database cleanup has already been completed.",
+            })
+
+        try:
+            output, summary = self._run_command(execute=False)
+        except (CommandError, LookupError) as exc:
+            return Response({"detail": str(exc)}, status=503)
+
+        token = signing.dumps({
+            "admin_id": request.user.pk,
+            "summary": summary,
+        }, salt=self.TOKEN_SALT)
+        return Response({
+            "completed": False,
+            "dry_run": True,
+            "summary": summary,
+            "preview_token": token,
+            "token_expires_in_seconds": 900,
+            "output": output,
+            "confirmation_phrase": self.CONFIRMATION_PHRASE,
+            "backup_acknowledgement": self.BACKUP_ACKNOWLEDGEMENT,
+            "preserves": [
+                "All admin, staff and superuser accounts",
+                "Future published journeys that have not departed",
+                "The driver accounts, profiles and vehicles required by those journeys",
+                "Approved verification documents required by retained routes",
+            ],
+        })
+
+    def post(self, request):
+        disabled = self._ensure_enabled()
+        if disabled:
+            return disabled
+        if self._already_completed():
+            return Response({
+                "detail": "The one-time cleanup has already been completed. Further executions are blocked.",
+                "completed": True,
+            }, status=409)
+        if request.data.get("confirmation") != self.CONFIRMATION_PHRASE:
+            return Response({"detail": "The confirmation phrase does not match."}, status=400)
+        if request.data.get("backup_acknowledged") is not True:
+            return Response({"detail": "Acknowledge that you have a backup or accept the irreversible risk before continuing."}, status=400)
+
+        token = str(request.data.get("preview_token", ""))
+        try:
+            preview = signing.loads(token, salt=self.TOKEN_SALT, max_age=900)
+        except signing.BadSignature:
+            return Response({"detail": "The preview token is invalid or has expired. Refresh the dry-run preview."}, status=400)
+        if preview.get("admin_id") != request.user.pk:
+            return Response({"detail": "Only the administrator who generated this preview can execute it."}, status=403)
+
+        try:
+            _, current_summary = self._run_command(execute=False)
+        except (CommandError, LookupError) as exc:
+            return Response({"detail": str(exc)}, status=503)
+        if preview.get("summary") != current_summary:
+            return Response({
+                "detail": "Database records changed since the preview. Refresh the preview and review the new counts.",
+                "preview_required": True,
+            }, status=409)
+
+        try:
+            with transaction.atomic():
+                # Serialise executions by locking the initiating administrator row.
+                User.objects.select_for_update().get(pk=request.user.pk)
+                if self._already_completed():
+                    return Response({
+                        "detail": "The one-time cleanup has already been completed.",
+                        "completed": True,
+                    }, status=409)
+
+                LogEntry.objects.create(
+                    user=request.user,
+                    content_type=None,
+                    object_id="",
+                    object_repr="WayTogether one-time database cleanup",
+                    action_flag=CHANGE,
+                    change_message=self.COMPLETION_MARKER,
+                )
+                output, summary = self._run_command(execute=True)
+        except (CommandError, LookupError) as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        return Response({
+            "completed": True,
+            "detail": "WayTogether database cleanup completed. The administrator and upcoming published journeys were preserved.",
+            "summary": summary,
+            "output": output,
         })
